@@ -1,0 +1,26 @@
+{
+  "name": "developers-performance",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @dev-performance/api\" \"npm run dev -w @dev-performance/web\"",
+    "build": "npm run build -w @dev-performance/api && npm run build -w @dev-performance/web",
+    "typecheck": "npm run typecheck -w @dev-performance/api && npm run typecheck -w @dev-performance/web",
+    "test": "npm run test -w @dev-performance/api && npm run test -w @dev-performance/web",
+    "db:generate": "npm run db:generate -w @dev-performance/api",
+    "db:migrate": "npm run db:migrate -w @dev-performance/api",
+    "db:seed": "npm run db:seed -w @dev-performance/api",
+    "db:studio": "npm run db:studio -w @dev-performance/api",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

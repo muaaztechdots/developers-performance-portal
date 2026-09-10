@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DEVELOPER
+}
+
+enum ReportPeriod {
+  YESTERDAY
+  TODAY
+}
+
+enum TaskStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique @db.VarChar(320)
+  passwordHash String    @map("password_hash")
+  firstName    String    @map("first_name") @db.VarChar(100)
+  lastName     String    @map("last_name") @db.VarChar(100)
+  role         UserRole  @default(DEVELOPER)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  developer    Developer?
+
+  @@map("users")
+}
+
+model Developer {
+  id            String         @id @default(uuid()) @db.Uuid
+  userId        String         @unique @map("user_id") @db.Uuid
+  jobTitle      String?        @map("job_title") @db.VarChar(150)
+  department    String?        @db.VarChar(150)
+  timezone      String         @default("Asia/Karachi") @db.VarChar(100)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  statusReports StatusReport[]
+
+  @@map("developers")
+}
+
+model StatusReport {
+  id          String       @id @default(uuid()) @db.Uuid
+  developerId String       @map("developer_id") @db.Uuid
+  reportDate  DateTime     @map("report_date") @db.Date
+  notes       String?
+  submittedAt DateTime?    @map("submitted_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  developer   Developer    @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  tasks       StatusTask[]
+
+  @@unique([developerId, reportDate])
+  @@index([reportDate])
+  @@map("status_reports")
+}
+
+model StatusTask {
+  id              String       @id @default(uuid()) @db.Uuid
+  statusReportId  String       @map("status_report_id") @db.Uuid
+  period          ReportPeriod
+  projectName     String?      @map("project_name") @db.VarChar(200)
+  description     String       @db.Text
+  durationMinutes Int?         @map("duration_minutes")
+  taskUrl         String?      @map("task_url") @db.Text
+  status          TaskStatus   @default(PLANNED)
+  sortOrder       Int          @default(0) @map("sort_order")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  statusReport    StatusReport @relation(fields: [statusReportId], references: [id], onDelete: Cascade)
+
+  @@index([statusReportId, period, sortOrder])
+  @@map("status_tasks")
+}
