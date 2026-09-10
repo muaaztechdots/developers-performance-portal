@@ -1,5 +1,13 @@
 import type { Developer, User } from "../types";
 
+export type DiscordDeveloperSyncResult = {
+  threadsScanned: number;
+  developersCreated: number;
+  developersLinked: number;
+  developersUnchanged: number;
+  errors: string[];
+};
+
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -25,5 +33,6 @@ export const api = {
     }),
   me: () => request<{ user: User }>("/auth/me"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
-  developers: () => request<{ developers: Developer[] }>("/developers")
+  developers: () => request<{ developers: Developer[] }>("/developers"),
+  syncDiscordDevelopers: () => request<{ result: DiscordDeveloperSyncResult }>("/integrations/discord/sync-developers", { method: "POST" })
 };

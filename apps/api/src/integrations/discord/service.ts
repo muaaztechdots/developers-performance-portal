@@ -3,7 +3,6 @@ import {
   Client,
   Events,
   GatewayIntentBits,
-  Partials,
   type AnyThreadChannel,
   type Message
 } from "discord.js";
@@ -21,14 +20,21 @@ type SyncResult = {
   errors: string[];
 };
 
+export type DeveloperSyncResult = {
+  threadsScanned: number;
+  developersCreated: number;
+  developersLinked: number;
+  developersUnchanged: number;
+  errors: string[];
+};
+
 let client: Client | null = null;
 let ready = false;
 let lastSyncAt: Date | null = null;
 let lastSyncResult: SyncResult | null = null;
 
-const qaThreadNames = new Set(
-  config.DISCORD_QA_THREAD_NAMES.split(",").map((name) => name.trim().toLocaleLowerCase()).filter(Boolean)
-);
+// Read-only Discord boundary: this service may fetch channels, threads and
+// messages, but it must never send, edit, delete or otherwise mutate Discord.
 
 function discordIsConfigured() {
   return Boolean(config.DISCORD_BOT_TOKEN && config.DISCORD_GUILD_ID && config.DISCORD_STATUS_CHANNEL_ID);
@@ -46,29 +52,28 @@ function placeholderEmail(threadName: string, threadId: string) {
 
 async function resolveDeveloper(thread: AnyThreadChannel) {
   const byThread = await prisma.developer.findUnique({ where: { discordThreadId: thread.id } });
-  if (byThread) return byThread;
+  if (byThread) return { developer: byThread, outcome: "unchanged" as const };
 
   const normalizedThreadName = thread.name.trim().toLocaleLowerCase();
   const developers = await prisma.developer.findMany({ include: { user: true } });
   const byName = developers.find(({ user }) =>
     `${user.firstName} ${user.lastName}`.trim().toLocaleLowerCase() === normalizedThreadName
   );
-  const specialty = qaThreadNames.has(normalizedThreadName)
-    ? DeveloperSpecialty.QA
-    : DeveloperSpecialty.ENGINEERING;
+  const specialty = DeveloperSpecialty.ENGINEERING;
 
   if (byName) {
-    return prisma.developer.update({
+    const developer = await prisma.developer.update({
       where: { id: byName.id },
       data: { discordThreadId: thread.id, discordThreadName: thread.name, specialty }
     });
+    return { developer, outcome: "linked" as const };
   }
 
   const { firstName, lastName } = splitName(thread.name);
   const passwordHash = await bcrypt.hash(randomUUID(), 12);
-  return prisma.developer.create({
+  const developer = await prisma.developer.create({
     data: {
-      jobTitle: specialty === DeveloperSpecialty.QA ? "QA Engineer" : "Developer",
+      jobTitle: "Developer",
       department: "Engineering",
       specialty,
       discordThreadId: thread.id,
@@ -85,6 +90,7 @@ async function resolveDeveloper(thread: AnyThreadChannel) {
       }
     }
   });
+  return { developer, outcome: "created" as const };
 }
 
 async function importMessage(message: Message) {
@@ -93,7 +99,7 @@ async function importMessage(message: Message) {
 
   const parsed = parseDiscordStatus(message.content);
   if (!parsed) return false;
-  const developer = await resolveDeveloper(message.channel);
+  const { developer } = await resolveDeveloper(message.channel);
 
   await prisma.$transaction(async (transaction) => {
     const report = await transaction.statusReport.upsert({
@@ -143,9 +149,25 @@ async function fetchStatusThreads() {
   }
 
   const active = await parent.threads.fetchActive();
-  const archived = await parent.threads.fetchArchived({ type: "public", limit: 100 });
-  const threads = [...active.threads.values(), ...archived.threads.values()];
-  return [...new Map(threads.map((thread) => [thread.id, thread])).values()];
+  const warnings: string[] = [];
+  let archivedThreads: AnyThreadChannel[] = [];
+
+  try {
+    const archived = await parent.threads.fetchArchived({ type: "public", limit: 100 });
+    archivedThreads = [...archived.threads.values()];
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? error.code : undefined;
+    if (code !== 50001) throw error;
+    warnings.push(
+      "Active threads were synced, but archived threads were unavailable. Allow Read Message History for the bot on the daily-status parent channel."
+    );
+  }
+
+  const threads = [...active.threads.values(), ...archivedThreads];
+  return {
+    threads: [...new Map(threads.map((thread) => [thread.id, thread])).values()],
+    warnings
+  };
 }
 
 export async function syncDiscordStatuses(): Promise<SyncResult> {
@@ -160,7 +182,8 @@ export async function syncDiscordStatuses(): Promise<SyncResult> {
     errors: []
   };
 
-  const threads = await fetchStatusThreads();
+  const { threads, warnings } = await fetchStatusThreads();
+  result.errors.push(...warnings);
   result.threadsScanned = threads.length;
 
   for (const thread of threads) {
@@ -181,13 +204,41 @@ export async function syncDiscordStatuses(): Promise<SyncResult> {
   return result;
 }
 
+export async function syncDiscordDevelopers(): Promise<DeveloperSyncResult> {
+  if (!discordIsConfigured()) throw new Error("Discord integration is not configured.");
+  if (!client || !ready) throw new Error("Discord bot is not connected yet.");
+
+  const result: DeveloperSyncResult = {
+    threadsScanned: 0,
+    developersCreated: 0,
+    developersLinked: 0,
+    developersUnchanged: 0,
+    errors: []
+  };
+  const { threads, warnings } = await fetchStatusThreads();
+  result.errors.push(...warnings);
+  result.threadsScanned = threads.length;
+
+  for (const thread of threads) {
+    try {
+      const { outcome } = await resolveDeveloper(thread);
+      if (outcome === "created") result.developersCreated += 1;
+      if (outcome === "linked") result.developersLinked += 1;
+      if (outcome === "unchanged") result.developersUnchanged += 1;
+    } catch (error) {
+      result.errors.push(`${thread.name}: ${error instanceof Error ? error.message : "Unknown sync error"}`);
+    }
+  }
+
+  return result;
+}
+
 export function getDiscordIntegrationStatus() {
   return {
     configured: discordIsConfigured(),
     connected: ready,
     guildId: config.DISCORD_GUILD_ID ?? null,
     channelId: config.DISCORD_STATUS_CHANNEL_ID ?? null,
-    qaThreadNames: [...qaThreadNames],
     lastSyncAt,
     lastSyncResult
   };
@@ -201,8 +252,9 @@ export async function startDiscordIntegration() {
   if (client) return;
 
   client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
-    partials: [Partials.Channel, Partials.Message]
+    // Read-only and deliberately narrow: no server-wide message events are subscribed to.
+    // Message history is fetched only for DISCORD_STATUS_CHANNEL_ID during a sync.
+    intents: [GatewayIntentBits.Guilds]
   });
 
   client.once(Events.ClientReady, async (connectedClient) => {
@@ -211,19 +263,10 @@ export async function startDiscordIntegration() {
     try {
       const result = await syncDiscordStatuses();
       console.log(`Discord backfill complete: ${result.reportsImported} reports imported.`);
+      if (result.errors.length) console.warn("Discord backfill warnings:", result.errors);
     } catch (error) {
       console.error("Discord backfill failed:", error);
     }
-  });
-
-  client.on(Events.MessageCreate, (message) => {
-    void importMessage(message).catch((error) => console.error("Discord message import failed:", error));
-  });
-
-  client.on(Events.MessageUpdate, (_oldMessage, updatedMessage) => {
-    void updatedMessage.fetch()
-      .then((message) => importMessage(message))
-      .catch((error) => console.error("Discord message update import failed:", error));
   });
 
   client.on(Events.Error, (error) => console.error("Discord client error:", error));

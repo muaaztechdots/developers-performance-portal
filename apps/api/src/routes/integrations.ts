@@ -2,7 +2,7 @@ import { Router } from "express";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
 import { authenticate } from "../middleware/authenticate.js";
-import { getDiscordIntegrationStatus, syncDiscordStatuses } from "../integrations/discord/service.js";
+import { getDiscordIntegrationStatus, syncDiscordDevelopers, syncDiscordStatuses } from "../integrations/discord/service.js";
 import { parseDiscordStatus } from "../integrations/discord/status-parser.js";
 
 export const integrationsRouter = Router();
@@ -32,6 +32,18 @@ integrationsRouter.post("/discord/parse-preview", (request, response, next) => {
 integrationsRouter.post("/discord/sync", async (_request, response, next) => {
   try {
     response.json({ result: await syncDiscordStatuses() });
+  } catch (error) {
+    if (error instanceof Error && /not configured|not connected/.test(error.message)) {
+      response.status(503).json({ message: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+integrationsRouter.post("/discord/sync-developers", async (_request, response, next) => {
+  try {
+    response.json({ result: await syncDiscordDevelopers() });
   } catch (error) {
     if (error instanceof Error && /not configured|not connected/.test(error.message)) {
       response.status(503).json({ message: error.message });

@@ -12,8 +12,7 @@ const envSchema = z.object({
   WEB_ORIGIN: z.string().url().default("http://localhost:5173"),
   DISCORD_BOT_TOKEN: optionalString(z.string().trim()),
   DISCORD_GUILD_ID: optionalString(z.string().regex(/^\d+$/)),
-  DISCORD_STATUS_CHANNEL_ID: optionalString(z.string().regex(/^\d+$/)),
-  DISCORD_QA_THREAD_NAMES: z.string().default("Sadaf")
+  DISCORD_STATUS_CHANNEL_ID: optionalString(z.string().regex(/^\d+$/))
 });
 
 export const config = envSchema.parse(process.env);
