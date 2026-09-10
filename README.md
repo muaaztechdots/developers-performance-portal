@@ -54,3 +54,28 @@ npm run db:down
 ```
 
 The API health endpoint is <http://localhost:4000/api/health>.
+
+## Discord daily-status ingestion
+
+The API can read the `daily-status` channel shown in the project brief. Each thread is treated as one developer. New thread messages are imported in real time, while the latest 100 messages from active and archived public threads are backfilled whenever the API starts.
+
+1. Create an application and bot in the [Discord Developer Portal](https://discord.com/developers/applications).
+2. On the bot settings page, enable the **Message Content Intent**.
+3. Invite the bot to the server with **View Channel** and **Read Message History** permissions for the status channel.
+4. Enable Developer Mode in Discord, then copy the server ID and the parent `daily-status` channel ID.
+5. Add these values to `apps/api/.env` and restart the API:
+
+   ```dotenv
+   DISCORD_BOT_TOKEN=your-secret-bot-token
+   DISCORD_GUILD_ID=your-server-id
+   DISCORD_STATUS_CHANNEL_ID=your-daily-status-channel-id
+   DISCORD_QA_THREAD_NAMES=Sadaf
+   ```
+
+Never commit the bot token. Imported Discord-only developers receive disabled placeholder login accounts; they can be invited properly later. `Sadaf` is classified as QA, and other new thread names default to engineering. Multiple QA thread names can be supplied as a comma-separated list.
+
+Admin endpoints:
+
+- `GET /api/integrations/discord` — connection and last-sync status
+- `POST /api/integrations/discord/sync` — manual backfill
+- `POST /api/integrations/discord/parse-preview` — preview how a message will be parsed

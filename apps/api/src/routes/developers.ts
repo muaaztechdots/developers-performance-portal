@@ -27,6 +27,9 @@ developersRouter.get("/", async (_request, response, next) => {
         jobTitle: true,
         department: true,
         timezone: true,
+        specialty: true,
+        discordThreadId: true,
+        discordThreadName: true,
         user: { select: { email: true, firstName: true, lastName: true, isActive: true } },
         _count: { select: { statusReports: true } }
       }

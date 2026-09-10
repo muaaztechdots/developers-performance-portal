@@ -16,6 +16,9 @@ export type Developer = {
   jobTitle: string | null;
   department: string | null;
   timezone: string;
+  specialty: "ENGINEERING" | "QA";
+  discordThreadId: string | null;
+  discordThreadName: string | null;
   user: {
     email: string;
     firstName: string;

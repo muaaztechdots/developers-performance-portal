@@ -6,6 +6,7 @@ import { config } from "./config.js";
 import { authRouter } from "./routes/auth.js";
 import { developersRouter } from "./routes/developers.js";
 import { statusReportsRouter } from "./routes/status-reports.js";
+import { integrationsRouter } from "./routes/integrations.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
 export const app = express();
@@ -20,5 +21,6 @@ app.get("/api/health", (_request, response) => response.json({ status: "ok" }));
 app.use("/api/auth", authRouter);
 app.use("/api/developers", developersRouter);
 app.use("/api/status-reports", statusReportsRouter);
+app.use("/api/integrations", integrationsRouter);
 app.use((_request, response) => response.status(404).json({ message: "Route not found." }));
 app.use(errorHandler);

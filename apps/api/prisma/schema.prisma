@@ -24,6 +24,16 @@ enum TaskStatus {
   BLOCKED
 }
 
+enum DeveloperSpecialty {
+  ENGINEERING
+  QA
+}
+
+enum ReportSource {
+  MANUAL
+  DISCORD
+}
+
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique @db.VarChar(320)
@@ -46,6 +56,9 @@ model Developer {
   jobTitle      String?        @map("job_title") @db.VarChar(150)
   department    String?        @db.VarChar(150)
   timezone      String         @default("Asia/Karachi") @db.VarChar(100)
+  specialty     DeveloperSpecialty @default(ENGINEERING)
+  discordThreadId String?      @unique @map("discord_thread_id") @db.VarChar(32)
+  discordThreadName String?    @map("discord_thread_name") @db.VarChar(200)
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -60,6 +73,11 @@ model StatusReport {
   reportDate  DateTime     @map("report_date") @db.Date
   notes       String?
   submittedAt DateTime?    @map("submitted_at")
+  source          ReportSource @default(MANUAL)
+  sourceMessageId String?      @unique @map("source_message_id") @db.VarChar(32)
+  sourceThreadId  String?      @map("source_thread_id") @db.VarChar(32)
+  rawContent      String?      @map("raw_content") @db.Text
+  importedAt      DateTime?    @map("imported_at")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
   developer   Developer    @relation(fields: [developerId], references: [id], onDelete: Cascade)
@@ -67,6 +85,7 @@ model StatusReport {
 
   @@unique([developerId, reportDate])
   @@index([reportDate])
+  @@index([sourceThreadId])
   @@map("status_reports")
 }
 
