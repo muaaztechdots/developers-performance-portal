@@ -32,6 +32,7 @@ function ClickUpEmptyState({ state }: { state: ClickUpEnrichment["state"] }) {
   const copy = {
     NOT_CLICKUP: ["No ClickUp data", "This task has no ClickUp ticket link. Other ticket providers are intentionally ignored."],
     NOT_CONFIGURED: ["ClickUp is not configured", "Add CLICKUP_API_TOKEN to apps/api/.env, then restart your API."],
+    PENDING: ["ClickUp sync pending", "The background worker will fetch and save this ticket shortly."],
     UNAVAILABLE: ["ClickUp data unavailable", "The ticket may not exist, or the configured ClickUp account may not have access."],
     AVAILABLE: ["No ClickUp data", "Ticket data is currently unavailable."]
   }[state];

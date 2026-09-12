@@ -40,35 +40,35 @@ enum SyncJobStatus {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique @db.VarChar(320)
-  passwordHash String    @map("password_hash")
-  firstName    String    @map("first_name") @db.VarChar(100)
-  lastName     String    @map("last_name") @db.VarChar(100)
-  role         UserRole  @default(DEVELOPER)
-  isActive     Boolean   @default(true) @map("is_active")
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique @db.VarChar(320)
+  passwordHash String     @map("password_hash")
+  firstName    String     @map("first_name") @db.VarChar(100)
+  lastName     String     @map("last_name") @db.VarChar(100)
+  role         UserRole   @default(DEVELOPER)
+  isActive     Boolean    @default(true) @map("is_active")
+  lastLoginAt  DateTime?  @map("last_login_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
   developer    Developer?
 
   @@map("users")
 }
 
 model Developer {
-  id            String         @id @default(uuid()) @db.Uuid
-  userId        String         @unique @map("user_id") @db.Uuid
-  jobTitle      String?        @map("job_title") @db.VarChar(150)
-  department    String?        @db.VarChar(150)
-  timezone      String         @default("Asia/Karachi") @db.VarChar(100)
-  specialty     DeveloperSpecialty @default(ENGINEERING)
-  discordThreadId String?      @unique @map("discord_thread_id") @db.VarChar(32)
-  discordThreadName String?    @map("discord_thread_name") @db.VarChar(200)
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  statusReports StatusReport[]
-  syncJobs      DiscordSyncJob[]
+  id                String             @id @default(uuid()) @db.Uuid
+  userId            String             @unique @map("user_id") @db.Uuid
+  jobTitle          String?            @map("job_title") @db.VarChar(150)
+  department        String?            @db.VarChar(150)
+  timezone          String             @default("Asia/Karachi") @db.VarChar(100)
+  specialty         DeveloperSpecialty @default(ENGINEERING)
+  discordThreadId   String?            @unique @map("discord_thread_id") @db.VarChar(32)
+  discordThreadName String?            @map("discord_thread_name") @db.VarChar(200)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  statusReports     StatusReport[]
+  syncJobs          DiscordSyncJob[]
 
   @@map("developers")
 }
@@ -98,20 +98,20 @@ model ProjectAlias {
 }
 
 model StatusReport {
-  id          String       @id @default(uuid()) @db.Uuid
-  developerId String       @map("developer_id") @db.Uuid
-  reportDate  DateTime     @map("report_date") @db.Date
-  notes       String?
-  submittedAt DateTime?    @map("submitted_at")
+  id              String       @id @default(uuid()) @db.Uuid
+  developerId     String       @map("developer_id") @db.Uuid
+  reportDate      DateTime     @map("report_date") @db.Date
+  notes           String?
+  submittedAt     DateTime?    @map("submitted_at")
   source          ReportSource @default(MANUAL)
   sourceMessageId String?      @map("source_message_id") @db.VarChar(32)
   sourceThreadId  String?      @map("source_thread_id") @db.VarChar(32)
   rawContent      String?      @map("raw_content") @db.Text
   importedAt      DateTime?    @map("imported_at")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  developer   Developer    @relation(fields: [developerId], references: [id], onDelete: Cascade)
-  tasks       StatusTask[]
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  developer       Developer    @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  tasks           StatusTask[]
 
   @@unique([developerId, reportDate])
   @@index([reportDate])
@@ -121,24 +121,61 @@ model StatusReport {
 }
 
 model StatusTask {
-  id              String       @id @default(uuid()) @db.Uuid
-  statusReportId  String       @map("status_report_id") @db.Uuid
+  id              String         @id @default(uuid()) @db.Uuid
+  statusReportId  String         @map("status_report_id") @db.Uuid
   period          ReportPeriod
-  projectName     String?      @map("project_name") @db.VarChar(200)
-  projectId       String?      @map("project_id") @db.Uuid
-  description     String       @db.Text
-  durationMinutes Int?         @map("duration_minutes")
-  taskUrl         String?      @map("task_url") @db.Text
+  projectName     String?        @map("project_name") @db.VarChar(200)
+  projectId       String?        @map("project_id") @db.Uuid
+  description     String         @db.Text
+  durationMinutes Int?           @map("duration_minutes")
+  taskUrl         String?        @map("task_url") @db.Text
   status          TaskStatus?
-  sortOrder       Int          @default(0) @map("sort_order")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
-  statusReport    StatusReport @relation(fields: [statusReportId], references: [id], onDelete: Cascade)
-  project         Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  clickUpTaskId   String?        @map("clickup_task_id") @db.VarChar(100)
+  sortOrder       Int            @default(0) @map("sort_order")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  statusReport    StatusReport   @relation(fields: [statusReportId], references: [id], onDelete: Cascade)
+  project         Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  clickUpTicket   ClickUpTicket? @relation(fields: [clickUpTaskId], references: [id], onDelete: SetNull)
 
   @@index([statusReportId, period, sortOrder])
   @@index([projectId])
+  @@index([clickUpTaskId])
   @@map("status_tasks")
+}
+
+model ClickUpTicket {
+  id                String           @id @db.VarChar(100)
+  title             String?          @db.Text
+  description       String?          @db.Text
+  url               String           @db.Text
+  lastSyncAttemptAt DateTime?        @map("last_sync_attempt_at")
+  lastSyncedAt      DateTime?        @map("last_synced_at")
+  syncError         String?          @map("sync_error") @db.Text
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  tasks             StatusTask[]
+  comments          ClickUpComment[]
+
+  @@index([lastSyncAttemptAt])
+  @@map("clickup_tickets")
+}
+
+model ClickUpComment {
+  id               String        @id @default(uuid()) @db.Uuid
+  clickUpTicketId  String        @map("clickup_ticket_id") @db.VarChar(100)
+  externalId       String        @map("external_id") @db.VarChar(100)
+  text             String        @db.Text
+  author           String        @db.VarChar(320)
+  authorAvatar     String?       @map("author_avatar") @db.Text
+  clickUpCreatedAt DateTime?     @map("clickup_created_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  ticket           ClickUpTicket @relation(fields: [clickUpTicketId], references: [id], onDelete: Cascade)
+
+  @@unique([clickUpTicketId, externalId])
+  @@index([clickUpTicketId, clickUpCreatedAt])
+  @@map("clickup_comments")
 }
 
 model DiscordSyncJob {

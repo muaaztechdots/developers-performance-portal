@@ -186,6 +186,9 @@ export type DeveloperDetail = Omit<Developer, "_count"> & {
       description: string;
       durationMinutes: number | null;
       taskUrl: string | null;
+      clickUpUrl: string | null;
+      pullRequestUrl: string | null;
+      pullRequestState: "FOUND" | "MISSING" | "PENDING" | "NOT_APPLICABLE";
       projectName: string | null;
       project: { id: string; name: string } | null;
     }>;
@@ -210,7 +213,7 @@ export type TaskDetail = {
 };
 
 export type ClickUpEnrichment = {
-  state: "NOT_CLICKUP" | "NOT_CONFIGURED" | "UNAVAILABLE" | "AVAILABLE";
+  state: "NOT_CLICKUP" | "NOT_CONFIGURED" | "PENDING" | "UNAVAILABLE" | "AVAILABLE";
   ticket: null | {
     id: string;
     title: string;

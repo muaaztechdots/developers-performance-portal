@@ -111,12 +111,12 @@ Admin endpoints:
 
 ## ClickUp task details
 
-Add a personal or OAuth ClickUp API token to `apps/api/.env`:
+Add a personal or OAuth ClickUp API token to either the root `.env` or `apps/api/.env`:
 
 ```dotenv
 CLICKUP_API_TOKEN=your-clickup-api-token
 ```
 
-Opening a task fetches its title, description, and 25 latest comments from ClickUp. Only HTTPS links on `app.clickup.com` are recognized; missing links and links from other ticket systems return a normal no-data state. ClickUp access is read-only and cached for one minute.
+The background worker discovers ClickUp links, then saves each unique ticket's title, description, and 25 latest comments in PostgreSQL. Tickets are refreshed one by one every five minutes and immediately after each Discord task import. The task detail API only reads the saved data, so opening a task never waits for ClickUp. Only HTTPS links on `app.clickup.com` are recognized; missing links and links from other ticket systems return a normal no-data state. ClickUp access is read-only.
 
 - `GET /api/tasks/:id` — local task detail with optional ClickUp enrichment

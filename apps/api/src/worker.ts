@@ -1,9 +1,28 @@
 import { SyncJobStatus } from "@prisma/client";
 import { prisma } from "./lib/prisma.js";
 import { importDeveloperThreadTasks } from "./integrations/discord/task-importer.js";
+import { CLICKUP_REFRESH_INTERVAL_MS, syncClickUpTickets } from "./integrations/clickup/sync.js";
 
 let stopping = false;
 let processing = false;
+let clickUpProcessing = false;
+
+async function processClickUpQueue() {
+  if (clickUpProcessing || stopping) return;
+  clickUpProcessing = true;
+  console.log("[clickup] Sync cycle started.");
+  try {
+    const result = await syncClickUpTickets();
+    const rateLimitMessage = result.rateLimitedUntil
+      ? ` Rate limited; remaining tickets will resume after ${result.rateLimitedUntil.toISOString()}.`
+      : "";
+    console.log(`[clickup] Sync cycle completed: ${result.syncedTickets} synced, ${result.failedTickets} failed, ${result.linkedTasks} tasks linked.${rateLimitMessage}`);
+  } catch (error) {
+    console.error("[clickup] Sync cycle failed:", error);
+  } finally {
+    clickUpProcessing = false;
+  }
+}
 
 async function claimNextJob() {
   const candidate = await prisma.discordSyncJob.findFirst({
@@ -34,6 +53,7 @@ async function processQueue() {
           where: { id: job.id },
           data: { ...result, status: SyncJobStatus.COMPLETED, completedAt: new Date() }
         });
+        await processClickUpQueue();
       } catch (error) {
         console.error(`Discord task sync ${job.id} failed:`, error);
         await prisma.discordSyncJob.update({
@@ -58,11 +78,14 @@ await prisma.discordSyncJob.updateMany({
 
 console.log("Discord task worker is ready.");
 const timer = setInterval(() => void processQueue(), 1_500);
+const clickUpTimer = setInterval(() => void processClickUpQueue(), CLICKUP_REFRESH_INTERVAL_MS);
 void processQueue();
+void processClickUpQueue();
 
 async function shutdown() {
   stopping = true;
   clearInterval(timer);
+  clearInterval(clickUpTimer);
   await prisma.$disconnect();
   process.exit(0);
 }

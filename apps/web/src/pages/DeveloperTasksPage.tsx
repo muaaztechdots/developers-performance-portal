@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, CalendarDays, CheckCircle2, Clock3, ExternalLink, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, CalendarDays, CheckCircle2, Clock3, ExternalLink, GitPullRequest, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -106,10 +106,26 @@ export function DeveloperTasksPage() {
               <em>{day.isWeekend ? <><CalendarDays size={13} />Weekend</> : <><CheckCircle2 size={13} />Status received</>}</em>
             </header>
             <div className="task-list">
+              <div className="task-list-header" aria-hidden="true">
+                <span>Task</span><span>Time</span><span>ClickUp</span><span>Pull request</span>
+              </div>
               {report.tasks.map((task) => <div className="task-row" key={task.id}>
                 <div className="task-copy"><Link className="task-detail-link" to={`/developers/${developer.id}/tasks/${task.id}`}>{task.description}</Link><span>{task.project?.name ?? task.projectName ?? "No project"}</span></div>
                 <span className="task-duration"><Clock3 size={14} />{durationLabel(task.durationMinutes)}</span>
-                {task.taskUrl ? <a href={task.taskUrl} target="_blank" rel="noreferrer" aria-label="Open task"><ExternalLink size={16} /></a> : <span className="task-link-empty">—</span>}
+                <span className="task-link-cell">
+                  {task.clickUpUrl
+                    ? <a className="task-source-link" href={task.clickUpUrl} target="_blank" rel="noreferrer" aria-label="Open ClickUp ticket">Ticket<ExternalLink size={13} /></a>
+                    : <span className="task-link-empty">—</span>}
+                </span>
+                <span className="task-link-cell">
+                  {task.pullRequestUrl
+                    ? <a className="task-source-link pr-link" href={task.pullRequestUrl} target="_blank" rel="noreferrer" aria-label="Open GitHub pull request"><GitPullRequest size={14} />View PR</a>
+                    : task.pullRequestState === "MISSING"
+                      ? <span className="pr-missing"><AlertCircle size={13} />PR missing</span>
+                      : task.pullRequestState === "PENDING"
+                        ? <span className="pr-pending">Checking…</span>
+                        : <span className="task-link-empty">—</span>}
+                </span>
               </div>)}
             </div>
           </article>;

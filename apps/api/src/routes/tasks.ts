@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
-import { clickUpIsConfigured, fetchClickUpTicket, parseClickUpTaskId } from "../integrations/clickup/service.js";
+import { clickUpIsConfigured, parseClickUpTaskId } from "../integrations/clickup/service.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -68,6 +68,26 @@ tasksRouter.get("/:id", async (request, response, next) => {
         taskUrl: true,
         projectName: true,
         project: { select: { id: true, name: true } },
+        clickUpTicket: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            url: true,
+            lastSyncedAt: true,
+            syncError: true,
+            comments: {
+              orderBy: [{ clickUpCreatedAt: "desc" }, { createdAt: "desc" }],
+              select: {
+                externalId: true,
+                text: true,
+                author: true,
+                authorAvatar: true,
+                clickUpCreatedAt: true
+              }
+            }
+          }
+        },
         statusReport: {
           select: {
             reportDate: true,
@@ -92,29 +112,45 @@ tasksRouter.get("/:id", async (request, response, next) => {
       return;
     }
 
-    const { userId: _userId, ...publicDeveloper } = task.statusReport.developer;
+    const { clickUpTicket, ...taskWithoutClickUp } = task;
+    const { userId: _userId, ...publicDeveloper } = taskWithoutClickUp.statusReport.developer;
     const publicTask = {
-      ...task,
-      statusReport: { ...task.statusReport, developer: publicDeveloper }
+      ...taskWithoutClickUp,
+      statusReport: { ...taskWithoutClickUp.statusReport, developer: publicDeveloper }
     };
 
-    const clickUpTaskId = parseClickUpTaskId(task.taskUrl);
+    const clickUpTaskId = clickUpTicket?.id ?? parseClickUpTaskId(task.taskUrl);
     if (!clickUpTaskId) {
       response.json({ task: publicTask, clickup: { state: "NOT_CLICKUP", ticket: null, comments: [] } });
+      return;
+    }
+    if (clickUpTicket?.title && clickUpTicket.lastSyncedAt) {
+      response.json({
+        task: publicTask,
+        clickup: {
+          state: "AVAILABLE",
+          ticket: {
+            id: clickUpTicket.id,
+            title: clickUpTicket.title,
+            description: clickUpTicket.description,
+            url: clickUpTicket.url
+          },
+          comments: clickUpTicket.comments.map((comment) => ({
+            id: comment.externalId,
+            text: comment.text,
+            author: comment.author,
+            authorAvatar: comment.authorAvatar,
+            createdAt: comment.clickUpCreatedAt
+          }))
+        }
+      });
       return;
     }
     if (!clickUpIsConfigured()) {
       response.json({ task: publicTask, clickup: { state: "NOT_CONFIGURED", ticket: null, comments: [] } });
       return;
     }
-
-    try {
-      const clickup = await fetchClickUpTicket(clickUpTaskId);
-      response.json({ task: publicTask, clickup: { state: "AVAILABLE", ...clickup } });
-    } catch (error) {
-      console.error(`ClickUp enrichment failed for task ${task.id}:`, error);
-      response.json({ task: publicTask, clickup: { state: "UNAVAILABLE", ticket: null, comments: [] } });
-    }
+    response.json({ task: publicTask, clickup: { state: clickUpTicket?.syncError ? "UNAVAILABLE" : "PENDING", ticket: null, comments: [] } });
   } catch (error) {
     next(error);
   }

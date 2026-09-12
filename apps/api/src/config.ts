@@ -1,5 +1,11 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
+
+const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+loadEnv({ path: resolve(apiRoot, ".env"), quiet: true });
+loadEnv({ path: resolve(apiRoot, "../..", ".env"), quiet: true });
 
 const optionalString = (schema: z.ZodString) =>
   z.preprocess((value) => typeof value === "string" && value.trim() === "" ? undefined : value, schema.optional());

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { DeveloperSpecialty, ReportPeriod, SyncJobStatus, UserRole } from "@prisma/client";
+import { parseClickUpTaskId } from "../integrations/clickup/service.js";
+import { findGitHubPullRequestUrl } from "../lib/github-pull-request.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -102,7 +104,20 @@ developersRouter.get("/:id", async (request, response, next) => {
             tasks: {
               where: { period: ReportPeriod.TODAY },
               orderBy: [{ sortOrder: "desc" }, { createdAt: "desc" }],
-              include: { project: { select: { id: true, name: true } } }
+              include: {
+                project: { select: { id: true, name: true } },
+                clickUpTicket: {
+                  select: {
+                    url: true,
+                    lastSyncedAt: true,
+                    syncError: true,
+                    comments: {
+                      orderBy: [{ clickUpCreatedAt: "desc" }, { createdAt: "desc" }],
+                      select: { text: true }
+                    }
+                  }
+                }
+              }
             }
           }
         },
@@ -113,7 +128,31 @@ developersRouter.get("/:id", async (request, response, next) => {
       response.status(404).json({ message: "Developer not found." });
       return;
     }
-    response.json({ developer });
+    response.json({
+      developer: {
+        ...developer,
+        statusReports: developer.statusReports.map((report) => ({
+          ...report,
+          tasks: report.tasks.map(({ clickUpTicket, ...task }) => {
+            const clickUpUrl = clickUpTicket?.url
+              ?? (parseClickUpTaskId(task.taskUrl) ? task.taskUrl : null);
+            const pullRequestUrl = findGitHubPullRequestUrl(clickUpTicket?.comments ?? []);
+            return {
+              ...task,
+              clickUpUrl,
+              pullRequestUrl,
+              pullRequestState: pullRequestUrl
+                ? "FOUND"
+                : !clickUpUrl
+                  ? "NOT_APPLICABLE"
+                  : clickUpTicket?.lastSyncedAt && !clickUpTicket.syncError
+                    ? "MISSING"
+                    : "PENDING"
+            };
+          })
+        }))
+      }
+    });
   } catch (error) {
     next(error);
   }
