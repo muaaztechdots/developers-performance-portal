@@ -65,6 +65,15 @@ export function DeveloperTasksPage() {
     todayInPakistan()
   );
   const missingWeekdays = calendarDays.filter((day) => !day.isWeekend && !reportsByDate.has(day.date)).length;
+  const clickUpTicketStates = new Map(
+    reports.flatMap((report) => report.tasks
+      .filter((task) => task.clickUpUrl)
+      .map((task) => [task.clickUpUrl!, task.pullRequestState] as const))
+  );
+  const missingPullRequests = [...clickUpTicketStates.values()].filter((state) => state === "MISSING").length;
+  const missingPullRequestPercentage = clickUpTicketStates.size
+    ? Math.round((missingPullRequests / clickUpTicketStates.size) * 100)
+    : null;
   const syncing = syncJob?.status === "PENDING" || syncJob?.status === "RUNNING";
 
   return (
@@ -83,7 +92,10 @@ export function DeveloperTasksPage() {
       <section className="task-summary-row">
         <div><strong>{reports.length}</strong><span>Statuses received</span></div>
         <div><strong>{missingWeekdays}</strong><span>Weekdays missing</span></div>
-        <div><strong>{reports.reduce((total, report) => total + report.tasks.length, 0)}</strong><span>Today tasks imported</span></div>
+        <div>
+          <strong>{missingPullRequestPercentage === null ? "—" : `${missingPullRequestPercentage}%`}</strong>
+          <span>{clickUpTicketStates.size ? `${missingPullRequests} of ${clickUpTicketStates.size} ClickUp tickets missing PR` : "No ClickUp tickets linked"}</span>
+        </div>
         <div><strong>{developer.discordThreadName ?? "Not linked"}</strong><span>Discord thread</span></div>
       </section>
 
