@@ -3,22 +3,12 @@ import {
   Client,
   Events,
   GatewayIntentBits,
-  type AnyThreadChannel,
-  type Message
+  type AnyThreadChannel
 } from "discord.js";
-import { DeveloperSpecialty, ReportSource, UserRole } from "@prisma/client";
+import { DeveloperSpecialty, UserRole } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { config } from "../../config.js";
 import { prisma } from "../../lib/prisma.js";
-import { parseDiscordStatus } from "./status-parser.js";
-
-type SyncResult = {
-  threadsScanned: number;
-  messagesScanned: number;
-  reportsImported: number;
-  ignoredMessages: number;
-  errors: string[];
-};
 
 export type DeveloperSyncResult = {
   threadsScanned: number;
@@ -31,7 +21,7 @@ export type DeveloperSyncResult = {
 let client: Client | null = null;
 let ready = false;
 let lastSyncAt: Date | null = null;
-let lastSyncResult: SyncResult | null = null;
+let lastSyncResult: DeveloperSyncResult | null = null;
 
 // Read-only Discord boundary: this service may fetch channels, threads and
 // messages, but it must never send, edit, delete or otherwise mutate Discord.
@@ -51,11 +41,18 @@ function placeholderEmail(threadName: string, threadId: string) {
 }
 
 async function resolveDeveloper(thread: AnyThreadChannel) {
-  const byThread = await prisma.developer.findUnique({ where: { discordThreadId: thread.id } });
-  if (byThread) return { developer: byThread, outcome: "unchanged" as const };
+  const byThread = await prisma.developer.findUnique({
+    where: { discordThreadId: thread.id },
+    include: { user: { select: { role: true } } }
+  });
+  if (byThread?.user.role === UserRole.DEVELOPER) return { developer: byThread, outcome: "unchanged" as const };
+  if (byThread) throw new Error("This Discord thread is linked to an administrator account.");
 
   const normalizedThreadName = thread.name.trim().toLocaleLowerCase();
-  const developers = await prisma.developer.findMany({ include: { user: true } });
+  const developers = await prisma.developer.findMany({
+    where: { user: { role: UserRole.DEVELOPER } },
+    include: { user: true }
+  });
   const byName = developers.find(({ user }) =>
     `${user.firstName} ${user.lastName}`.trim().toLocaleLowerCase() === normalizedThreadName
   );
@@ -93,51 +90,6 @@ async function resolveDeveloper(thread: AnyThreadChannel) {
   return { developer, outcome: "created" as const };
 }
 
-async function importMessage(message: Message) {
-  if (message.author.bot || !message.channel.isThread()) return false;
-  if (message.channel.parentId !== config.DISCORD_STATUS_CHANNEL_ID) return false;
-
-  const parsed = parseDiscordStatus(message.content);
-  if (!parsed) return false;
-  const { developer } = await resolveDeveloper(message.channel);
-
-  await prisma.$transaction(async (transaction) => {
-    const report = await transaction.statusReport.upsert({
-      where: {
-        developerId_reportDate: {
-          developerId: developer.id,
-          reportDate: parsed.reportDate
-        }
-      },
-      create: {
-        developerId: developer.id,
-        reportDate: parsed.reportDate,
-        submittedAt: message.createdAt,
-        source: ReportSource.DISCORD,
-        sourceMessageId: message.id,
-        sourceThreadId: message.channel.id,
-        rawContent: message.content,
-        importedAt: new Date()
-      },
-      update: {
-        submittedAt: message.createdAt,
-        source: ReportSource.DISCORD,
-        sourceMessageId: message.id,
-        sourceThreadId: message.channel.id,
-        rawContent: message.content,
-        importedAt: new Date()
-      }
-    });
-
-    await transaction.statusTask.deleteMany({ where: { statusReportId: report.id } });
-    await transaction.statusTask.createMany({
-      data: parsed.tasks.map((task) => ({ ...task, statusReportId: report.id }))
-    });
-  });
-
-  return true;
-}
-
 async function fetchStatusThreads() {
   if (!client || !config.DISCORD_STATUS_CHANNEL_ID || !config.DISCORD_GUILD_ID) {
     throw new Error("Discord is not configured.");
@@ -170,40 +122,6 @@ async function fetchStatusThreads() {
   };
 }
 
-export async function syncDiscordStatuses(): Promise<SyncResult> {
-  if (!discordIsConfigured()) throw new Error("Discord integration is not configured.");
-  if (!client || !ready) throw new Error("Discord bot is not connected yet.");
-
-  const result: SyncResult = {
-    threadsScanned: 0,
-    messagesScanned: 0,
-    reportsImported: 0,
-    ignoredMessages: 0,
-    errors: []
-  };
-
-  const { threads, warnings } = await fetchStatusThreads();
-  result.errors.push(...warnings);
-  result.threadsScanned = threads.length;
-
-  for (const thread of threads) {
-    try {
-      const messages = await thread.messages.fetch({ limit: 100 });
-      for (const message of [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp)) {
-        result.messagesScanned += 1;
-        if (await importMessage(message)) result.reportsImported += 1;
-        else result.ignoredMessages += 1;
-      }
-    } catch (error) {
-      result.errors.push(`${thread.name}: ${error instanceof Error ? error.message : "Unknown import error"}`);
-    }
-  }
-
-  lastSyncAt = new Date();
-  lastSyncResult = result;
-  return result;
-}
-
 export async function syncDiscordDevelopers(): Promise<DeveloperSyncResult> {
   if (!discordIsConfigured()) throw new Error("Discord integration is not configured.");
   if (!client || !ready) throw new Error("Discord bot is not connected yet.");
@@ -230,6 +148,8 @@ export async function syncDiscordDevelopers(): Promise<DeveloperSyncResult> {
     }
   }
 
+  lastSyncAt = new Date();
+  lastSyncResult = result;
   return result;
 }
 
@@ -257,16 +177,9 @@ export async function startDiscordIntegration() {
     intents: [GatewayIntentBits.Guilds]
   });
 
-  client.once(Events.ClientReady, async (connectedClient) => {
+  client.once(Events.ClientReady, (connectedClient) => {
     ready = true;
     console.log(`Discord ingestion connected as ${connectedClient.user.tag}`);
-    try {
-      const result = await syncDiscordStatuses();
-      console.log(`Discord backfill complete: ${result.reportsImported} reports imported.`);
-      if (result.errors.length) console.warn("Discord backfill warnings:", result.errors);
-    } catch (error) {
-      console.error("Discord backfill failed:", error);
-    }
   });
 
   client.on(Events.Error, (error) => console.error("Discord client error:", error));

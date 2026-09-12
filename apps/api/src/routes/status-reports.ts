@@ -42,6 +42,7 @@ statusReportsRouter.get("/", async (request, response, next) => {
     const reports = await prisma.statusReport.findMany({
       where: {
         developerId,
+        developer: { user: { role: UserRole.DEVELOPER } },
         reportDate: {
           gte: query.from ? dateOnly(query.from) : undefined,
           lte: query.to ? dateOnly(query.to) : undefined
@@ -62,7 +63,9 @@ statusReportsRouter.get("/", async (request, response, next) => {
 statusReportsRouter.post("/", async (request, response, next) => {
   try {
     const input = statusReportInputSchema.parse(request.body);
-    const developer = await prisma.developer.findUnique({ where: { id: input.developerId } });
+    const developer = await prisma.developer.findFirst({
+      where: { id: input.developerId, user: { role: UserRole.DEVELOPER } }
+    });
     const canWrite = request.session!.role === UserRole.ADMIN || developer?.userId === request.session!.sub;
     if (!canWrite) {
       response.status(403).json({ message: "You cannot create a report for this developer." });
@@ -93,7 +96,7 @@ statusReportsRouter.post("/", async (request, response, next) => {
           description: task.description,
           durationMinutes: task.durationMinutes,
           taskUrl: task.taskUrl,
-          status: task.status ?? (task.period === ReportPeriod.YESTERDAY ? TaskStatus.COMPLETED : TaskStatus.PLANNED),
+          status: task.status ?? null,
           sortOrder: task.sortOrder ?? index
         }))
       });

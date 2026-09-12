@@ -20,29 +20,17 @@ async function main() {
         email,
         passwordHash,
         isActive: true,
-        role: UserRole.ADMIN,
-        developer: {
-          upsert: {
-            create: { jobTitle: "Administrator", department: "Operations" },
-            update: {}
-          }
-        }
+        role: UserRole.ADMIN
       }
     });
   } else {
     await prisma.user.create({
       data: {
-      email,
-      passwordHash,
-      firstName: "System",
-      lastName: "Admin",
-      role: UserRole.ADMIN,
-      developer: {
-        create: {
-          jobTitle: "Administrator",
-          department: "Operations"
-        }
-      }
+        email,
+        passwordHash,
+        firstName: "System",
+        lastName: "Admin",
+        role: UserRole.ADMIN
       }
     });
   }

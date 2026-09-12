@@ -18,10 +18,8 @@ enum ReportPeriod {
 }
 
 enum TaskStatus {
-  PLANNED
   IN_PROGRESS
-  COMPLETED
-  BLOCKED
+  DONE
 }
 
 enum DeveloperSpecialty {
@@ -32,6 +30,13 @@ enum DeveloperSpecialty {
 enum ReportSource {
   MANUAL
   DISCORD
+}
+
+enum SyncJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
 }
 
 model User {
@@ -63,8 +68,33 @@ model Developer {
   updatedAt     DateTime       @updatedAt @map("updated_at")
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   statusReports StatusReport[]
+  syncJobs      DiscordSyncJob[]
 
   @@map("developers")
+}
+
+model Project {
+  id             String         @id @default(uuid()) @db.Uuid
+  name           String         @db.VarChar(200)
+  normalizedName String         @unique @map("normalized_name") @db.VarChar(200)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  aliases        ProjectAlias[]
+  tasks          StatusTask[]
+
+  @@map("projects")
+}
+
+model ProjectAlias {
+  id             String   @id @default(uuid()) @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  name           String   @db.VarChar(200)
+  normalizedName String   @unique @map("normalized_name") @db.VarChar(200)
+  createdAt      DateTime @default(now()) @map("created_at")
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_aliases")
 }
 
 model StatusReport {
@@ -74,7 +104,7 @@ model StatusReport {
   notes       String?
   submittedAt DateTime?    @map("submitted_at")
   source          ReportSource @default(MANUAL)
-  sourceMessageId String?      @unique @map("source_message_id") @db.VarChar(32)
+  sourceMessageId String?      @map("source_message_id") @db.VarChar(32)
   sourceThreadId  String?      @map("source_thread_id") @db.VarChar(32)
   rawContent      String?      @map("raw_content") @db.Text
   importedAt      DateTime?    @map("imported_at")
@@ -85,6 +115,7 @@ model StatusReport {
 
   @@unique([developerId, reportDate])
   @@index([reportDate])
+  @@index([sourceMessageId])
   @@index([sourceThreadId])
   @@map("status_reports")
 }
@@ -94,15 +125,36 @@ model StatusTask {
   statusReportId  String       @map("status_report_id") @db.Uuid
   period          ReportPeriod
   projectName     String?      @map("project_name") @db.VarChar(200)
+  projectId       String?      @map("project_id") @db.Uuid
   description     String       @db.Text
   durationMinutes Int?         @map("duration_minutes")
   taskUrl         String?      @map("task_url") @db.Text
-  status          TaskStatus   @default(PLANNED)
+  status          TaskStatus?
   sortOrder       Int          @default(0) @map("sort_order")
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
   statusReport    StatusReport @relation(fields: [statusReportId], references: [id], onDelete: Cascade)
+  project         Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([statusReportId, period, sortOrder])
+  @@index([projectId])
   @@map("status_tasks")
+}
+
+model DiscordSyncJob {
+  id                String        @id @default(uuid()) @db.Uuid
+  developerId       String        @map("developer_id") @db.Uuid
+  status            SyncJobStatus @default(PENDING)
+  processedMessages Int           @default(0) @map("processed_messages")
+  importedReports   Int           @default(0) @map("imported_reports")
+  importedTasks     Int           @default(0) @map("imported_tasks")
+  error             String?       @db.Text
+  createdAt         DateTime      @default(now()) @map("created_at")
+  startedAt         DateTime?     @map("started_at")
+  completedAt       DateTime?     @map("completed_at")
+  developer         Developer     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([developerId, createdAt])
+  @@map("discord_sync_jobs")
 }

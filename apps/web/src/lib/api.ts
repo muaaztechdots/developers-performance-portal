@@ -1,4 +1,4 @@
-import type { Developer, User } from "../types";
+import type { ClickUpEnrichment, Developer, DeveloperDetail, DeveloperProfile, DeveloperStatusSyncJob, DiscordSyncJob, TaskDetail, UpdateDeveloperInput, User } from "../types";
 
 export type DiscordDeveloperSyncResult = {
   threadsScanned: number;
@@ -33,6 +33,16 @@ export const api = {
     }),
   me: () => request<{ user: User }>("/auth/me"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
-  developers: () => request<{ developers: Developer[] }>("/developers"),
-  syncDiscordDevelopers: () => request<{ result: DiscordDeveloperSyncResult }>("/integrations/discord/sync-developers", { method: "POST" })
+  developers: () => request<{ developers: Developer[]; yesterdayDate: string }>("/developers"),
+  developer: (id: string) => request<{ developer: DeveloperDetail }>(`/developers/${id}`),
+  updateDeveloper: (id: string, input: UpdateDeveloperInput) => request<{ developer: DeveloperProfile }>(`/developers/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  }),
+  syncDeveloperTasks: (id: string) => request<{ job: DiscordSyncJob }>(`/developers/${id}/sync-tasks`, { method: "POST" }),
+  developerSyncJob: (developerId: string, jobId: string) => request<{ job: DiscordSyncJob }>(`/developers/${developerId}/sync-jobs/${jobId}`),
+  task: (id: string) => request<{ task: TaskDetail; clickup: ClickUpEnrichment }>(`/tasks/${id}`),
+  syncDiscordDevelopers: () => request<{ result: DiscordDeveloperSyncResult }>("/integrations/discord/sync-developers", { method: "POST" }),
+  syncAllDiscordStatuses: () => request<{ jobs: DeveloperStatusSyncJob[]; developerSync: DiscordDeveloperSyncResult }>("/integrations/discord/sync-statuses", { method: "POST" }),
+  discordStatusSyncProgress: (jobIds: string[]) => request<{ jobs: DeveloperStatusSyncJob[] }>(`/integrations/discord/sync-statuses/progress?jobIds=${encodeURIComponent(jobIds.join(","))}`)
 };

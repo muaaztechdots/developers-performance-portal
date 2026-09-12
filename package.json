@@ -6,7 +6,7 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @dev-performance/api\" \"npm run dev -w @dev-performance/web\"",
+    "dev": "concurrently -n api,worker,web -c cyan,yellow,magenta \"npm run dev -w @dev-performance/api\" \"npm run dev:worker -w @dev-performance/api\" \"npm run dev -w @dev-performance/web\"",
     "build": "npm run build -w @dev-performance/api && npm run build -w @dev-performance/web",
     "typecheck": "npm run typecheck -w @dev-performance/api && npm run typecheck -w @dev-performance/web",
     "test": "npm run test -w @dev-performance/api && npm run test -w @dev-performance/web",

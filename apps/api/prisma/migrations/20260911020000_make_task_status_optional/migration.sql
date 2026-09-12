@@ -1,0 +1,2 @@
+ALTER TABLE "status_tasks" ALTER COLUMN "status" DROP DEFAULT;
+ALTER TABLE "status_tasks" ALTER COLUMN "status" DROP NOT NULL;
