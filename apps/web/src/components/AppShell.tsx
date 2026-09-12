@@ -4,11 +4,17 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Brand } from "./Brand";
 
-const navigation = [
+const overviewNavigation = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Developers", path: "/developers", icon: Users },
   { label: "Projects", path: "/projects", icon: FolderKanban }
 ];
+
+const insightNavigation = [
+  { label: "Reports", path: "/reports", icon: BarChart3 }
+];
+
+const navigation = [...overviewNavigation, ...insightNavigation];
 
 export function AppShell() {
   const { user, logout } = useAuth();
@@ -30,14 +36,19 @@ export function AppShell() {
         </div>
         <nav className="side-nav" aria-label="Main navigation">
           <p className="nav-label">Overview</p>
-          {navigation.map(({ label, path, icon: Icon }) => (
+          {overviewNavigation.map(({ label, path, icon: Icon }) => (
             <NavLink key={path} to={path} onClick={() => setMobileOpen(false)} className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
               <Icon size={19} />
               <span>{label}</span>
             </NavLink>
           ))}
           <p className="nav-label nav-label-space">Insights</p>
-          <span className="nav-item muted"><BarChart3 size={19} /><span>Reports</span><em>Soon</em></span>
+          {insightNavigation.map(({ label, path, icon: Icon }) => (
+            <NavLink key={path} to={path} onClick={() => setMobileOpen(false)} className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
+              <Icon size={19} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
         </nav>
         <div className="sidebar-footer">
           <div className="user-mini">

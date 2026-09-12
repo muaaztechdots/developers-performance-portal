@@ -61,6 +61,60 @@ export type ProjectInput = {
   aliases: string[];
 };
 
+export type PerformanceReport = {
+  filters: {
+    developerId: string | null;
+    mode: "date" | "month";
+    date: string | null;
+    month: string | null;
+    from: string;
+    to: string;
+  };
+  stats: {
+    statusDays: number;
+    taskCount: number;
+    totalMinutes: number;
+    averageMinutesPerStatusDay: number;
+    linkedTickets: number;
+    assignedTasks: number;
+    timedTasks: number;
+    ticketCoveragePercent: number | null;
+    projectCoveragePercent: number | null;
+    timeCoveragePercent: number | null;
+  };
+  dailyActivity: Array<{
+    date: string;
+    taskCount: number;
+    reportedMinutes: number;
+    developersReported: number;
+  }>;
+  projectBreakdown: Array<{
+    id: string | null;
+    name: string;
+    taskCount: number;
+    reportedMinutes: number;
+  }>;
+  developerBreakdown: Array<{
+    id: string;
+    name: string;
+    specialty: "ENGINEERING" | "QA";
+    statusDays: number;
+    taskCount: number;
+    reportedMinutes: number;
+    linkedTickets: number;
+  }>;
+  tasks: Array<{
+    id: string;
+    date: string;
+    description: string;
+    durationMinutes: number | null;
+    taskUrl: string | null;
+    projectName: string | null;
+    project: { id: string; name: string } | null;
+    developer: { id: string; name: string };
+  }>;
+};
+
 export type DashboardSummary = {
   yesterdayDate: string;
   yesterdayIsWeekend: boolean;

@@ -1,4 +1,4 @@
-import type { ClickUpEnrichment, DashboardSummary, Developer, DeveloperDetail, DeveloperProfile, DeveloperStatusSyncJob, DiscordSyncJob, Project, ProjectInput, TaskDetail, UpdateDeveloperInput, User } from "../types";
+import type { ClickUpEnrichment, DashboardSummary, Developer, DeveloperDetail, DeveloperProfile, DeveloperStatusSyncJob, DiscordSyncJob, PerformanceReport, Project, ProjectInput, TaskDetail, UpdateDeveloperInput, User } from "../types";
 
 export type DiscordDeveloperSyncResult = {
   threadsScanned: number;
@@ -50,6 +50,13 @@ export const api = {
     method: "PATCH",
     body: JSON.stringify(input)
   }),
+  performanceReport: (filters: { developerId?: string; date?: string; month?: string }) => {
+    const query = new URLSearchParams();
+    if (filters.developerId) query.set("developerId", filters.developerId);
+    if (filters.date) query.set("date", filters.date);
+    if (filters.month) query.set("month", filters.month);
+    return request<{ report: PerformanceReport }>(`/reports?${query.toString()}`);
+  },
   syncDeveloperTasks: (id: string) => request<{ job: DiscordSyncJob }>(`/developers/${id}/sync-tasks`, { method: "POST" }),
   developerSyncJob: (developerId: string, jobId: string) => request<{ job: DiscordSyncJob }>(`/developers/${developerId}/sync-jobs/${jobId}`),
   task: (id: string) => request<{ task: TaskDetail; clickup: ClickUpEnrichment }>(`/tasks/${id}`),

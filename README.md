@@ -57,6 +57,13 @@ npm run db:down
 
 The API health endpoint is <http://localhost:4000/api/health>.
 
+## Performance reports
+
+The Reports page summarizes the persisted `Today` tasks for either one calendar date or a full month. Administrators can filter by any engineer or QA team member; developer accounts are restricted to their own report data. The report includes hours, task and status-day totals, data-quality coverage, daily activity, project allocation, engineer summaries, and a linked task work log.
+
+- `GET /api/reports?month=YYYY-MM&developerId=UUID` - monthly report
+- `GET /api/reports?date=YYYY-MM-DD&developerId=UUID` - daily report
+
 ## Discord daily-status ingestion
 
 The API reads only the configured `daily-status` channel. Each thread is treated as one developer. **Sync Discord** on the Developers page imports thread names as engineering developers. Opening a developer and clicking **Sync Tasks** queues that developer's complete thread history for a separate worker, so a long import does not block API requests.

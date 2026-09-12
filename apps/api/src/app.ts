@@ -10,6 +10,7 @@ import { integrationsRouter } from "./routes/integrations.js";
 import { tasksRouter } from "./routes/tasks.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { projectsRouter } from "./routes/projects.js";
+import { reportsRouter } from "./routes/reports.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
 export const app = express();
@@ -25,6 +26,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/developers", developersRouter);
 app.use("/api/projects", projectsRouter);
+app.use("/api/reports", reportsRouter);
 app.use("/api/status-reports", statusReportsRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/integrations", integrationsRouter);
