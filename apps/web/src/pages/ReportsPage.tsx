@@ -1,6 +1,5 @@
-import { AlertCircle, BarChart3, CalendarDays, CheckCircle2, Clock3, ExternalLink, Filter, FolderKanban, ListTodo, TicketCheck, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import { AlertCircle, BarChart3, CalendarDays, CheckCircle2, ChevronDown, Clock3, ExternalLink, FolderKanban, ListTodo, RefreshCw, TicketCheck, Users } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -29,65 +28,90 @@ function isWeekend(value: string) {
   return day === 0 || day === 6;
 }
 
+type PeriodKind = "this_month" | "last_month" | "this_week" | "last_week" | "custom_month" | "custom_date";
+
+function addDays(value: Date, days: number) {
+  const result = new Date(value);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function periodRequest(kind: PeriodKind, month: string, date: string) {
+  const now = new Date();
+  if (kind === "this_month") return { month: localDateInput(now).slice(0, 7) };
+  if (kind === "last_month") return { month: localDateInput(new Date(now.getFullYear(), now.getMonth() - 1, 1)).slice(0, 7) };
+  if (kind === "custom_month") return { month };
+  if (kind === "custom_date") return { date };
+
+  const today = new Date(`${localDateInput(now)}T12:00:00`);
+  const monday = addDays(today, -((today.getDay() + 6) % 7));
+  if (kind === "this_week") return { from: localDateInput(monday), to: localDateInput(today) };
+  return { from: localDateInput(addDays(monday, -7)), to: localDateInput(addDays(monday, -1)) };
+}
+
 export function ReportsPage() {
   const { user } = useAuth();
   const today = localDateInput();
   const [developers, setDevelopers] = useState<Developer[]>([]);
   const [developerId, setDeveloperId] = useState("");
-  const [periodMode, setPeriodMode] = useState<"month" | "date">("month");
+  const [periodKind, setPeriodKind] = useState<PeriodKind>("this_month");
   const [month, setMonth] = useState(today.slice(0, 7));
   const [date, setDate] = useState(today);
   const [report, setReport] = useState<PerformanceReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  async function loadReport() {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await api.performanceReport({
-        developerId: user?.role === "ADMIN" ? developerId || undefined : undefined,
-        date: periodMode === "date" ? date : undefined,
-        month: periodMode === "month" ? month : undefined
-      });
-      setReport(result.report);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load report.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const periodPickerRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
-    const initialize = async () => {
-      if (user?.role === "ADMIN") {
-        try {
-          const result = await api.developers();
-          setDevelopers(result.developers);
-        } catch {
-          setDevelopers([]);
-        }
-      }
-      await loadReport();
-    };
-    void initialize();
-    // Initial values are intentionally applied once when the signed-in user is known.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (user?.role !== "ADMIN") return;
+    api.developers().then((result) => setDevelopers(result.developers)).catch(() => setDevelopers([]));
   }, [user?.role]);
 
-  function applyFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void loadReport();
+  useEffect(() => {
+    if (!user) return;
+    if ((periodKind === "custom_month" && !month) || (periodKind === "custom_date" && !date)) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api.performanceReport({
+      developerId: user.role === "ADMIN" ? developerId || undefined : undefined,
+      ...periodRequest(periodKind, month, date)
+    }).then((result) => {
+      if (!cancelled) setReport(result.report);
+    }).catch((loadError) => {
+      if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Could not load report.");
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [date, developerId, month, periodKind, user]);
+
+  function selectPeriod(kind: PeriodKind) {
+    setPeriodKind(kind);
+    periodPickerRef.current?.removeAttribute("open");
   }
 
   const maxDailyMinutes = useMemo(() => Math.max(1, ...(report?.dailyActivity.map((day) => day.reportedMinutes) ?? [])), [report]);
   const maxProjectValue = useMemo(() => Math.max(1, ...(report?.projectBreakdown.map((project) => project.reportedMinutes || project.taskCount) ?? [])), [report]);
   const selectedDeveloper = developers.find((developer) => developer.id === report?.filters.developerId);
   const scopeLabel = report
-    ? report.filters.mode === "date"
+    ? report.filters.mode === "date" || report.filters.from === report.filters.to
       ? dateLabel(report.filters.from, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
-      : dateLabel(report.filters.from, { month: "long", year: "numeric" })
+      : report.filters.mode === "month"
+        ? dateLabel(report.filters.from, { month: "long", year: "numeric" })
+        : `${dateLabel(report.filters.from, { month: "short", day: "numeric", year: "numeric" })} - ${dateLabel(report.filters.to, { month: "short", day: "numeric", year: "numeric" })}`
     : "";
+  const periodControlLabel = {
+    this_month: "This month",
+    last_month: "Last month",
+    this_week: "This week",
+    last_week: "Last week",
+    custom_month: month ? dateLabel(`${month}-01`, { month: "long", year: "numeric" }) : "Choose month",
+    custom_date: date ? dateLabel(date, { month: "short", day: "numeric", year: "numeric" }) : "Choose date"
+  }[periodKind];
 
   const cards = report ? [
     { label: "Reported hours", value: durationLabel(report.stats.totalMinutes), icon: Clock3, tone: "violet", note: `${report.stats.timedTasks}/${report.stats.taskCount} tasks include time` },
@@ -102,12 +126,20 @@ export function ReportsPage() {
         <div><p className="welcome-line">Performance reports</p><p>Review reported effort, delivery activity, and data completeness by engineer and period.</p></div>
       </section>
 
-      <form className="panel report-filters" onSubmit={applyFilters}>
+      <section className="panel report-filters">
         {user?.role === "ADMIN" && <label><span>Engineer</span><select value={developerId} onChange={(event) => setDeveloperId(event.target.value)}><option value="">All engineers and QA</option>{developers.map((developer) => <option key={developer.id} value={developer.id}>{developer.user.firstName} {developer.user.lastName}</option>)}</select></label>}
-        <label><span>Period</span><select value={periodMode} onChange={(event) => setPeriodMode(event.target.value as "month" | "date")}><option value="month">Full month</option><option value="date">Specific date</option></select></label>
-        {periodMode === "month" ? <label><span>Month</span><input required type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label> : <label><span>Date</span><input required type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>}
-        <button className="primary-button compact" disabled={loading} type="submit"><Filter size={16} />{loading ? "Loading..." : "Apply filters"}</button>
-      </form>
+        <details className="report-period-picker" ref={periodPickerRef}>
+          <summary><span>Period</span><div><CalendarDays size={16} /><strong>{periodControlLabel}</strong><ChevronDown size={15} /></div></summary>
+          <div className="report-period-menu">
+            <span>Quick ranges</span>
+            <div className="report-period-presets">{(["this_month", "last_month", "this_week", "last_week"] as const).map((kind) => <button className={periodKind === kind ? "active" : ""} key={kind} type="button" onClick={() => selectPeriod(kind)}>{{ this_month: "This month", last_month: "Last month", this_week: "This week", last_week: "Last week" }[kind]}</button>)}</div>
+            <span>Custom period</span>
+            <label><span>Month</span><input type="month" value={month} onChange={(event) => { setMonth(event.target.value); setPeriodKind("custom_month"); if (event.target.value) periodPickerRef.current?.removeAttribute("open"); }} /></label>
+            <label><span>Specific date</span><input type="date" value={date} onChange={(event) => { setDate(event.target.value); setPeriodKind("custom_date"); if (event.target.value) periodPickerRef.current?.removeAttribute("open"); }} /></label>
+          </div>
+        </details>
+        {loading && <span className="report-auto-status loading"><RefreshCw className="is-spinning" size={15} />Updating report...</span>}
+      </section>
 
       {error && <div className="sync-notice error" role="alert"><AlertCircle size={18} /><span>{error}</span><button type="button" aria-label="Dismiss error" onClick={() => setError(null)}>x</button></div>}
       {loading && !report ? <div className="empty-state"><div className="loading-mark" /><h3>Building report...</h3></div> : report && <>

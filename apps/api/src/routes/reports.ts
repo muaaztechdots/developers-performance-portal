@@ -12,9 +12,14 @@ const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 export const reportQuerySchema = z.object({
   developerId: z.uuid().optional(),
   date: z.iso.date().optional(),
-  month: monthSchema.optional()
-}).refine((value) => !(value.date && value.month), {
-  message: "Choose either a date or a month, not both."
+  month: monthSchema.optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional()
+}).superRefine((value, context) => {
+  const periodTypes = Number(Boolean(value.date)) + Number(Boolean(value.month)) + Number(Boolean(value.from || value.to));
+  if (periodTypes > 1) context.addIssue({ code: "custom", message: "Choose one date filter." });
+  if (Boolean(value.from) !== Boolean(value.to)) context.addIssue({ code: "custom", message: "Both from and to dates are required." });
+  if (value.from && value.to && value.from > value.to) context.addIssue({ code: "custom", message: "From date must not be after to date." });
 });
 
 function dateOnly(value: string) {
@@ -41,10 +46,13 @@ function monthRange(month: string) {
 reportsRouter.get("/", async (request, response, next) => {
   try {
     const query = reportQuerySchema.parse(request.query);
-    const selectedMonth = query.month ?? (!query.date ? currentMonthInPakistan() : null);
+    const hasCustomRange = Boolean(query.from && query.to);
+    const selectedMonth = query.month ?? (!query.date && !hasCustomRange ? currentMonthInPakistan() : null);
     const range = query.date
       ? { from: dateOnly(query.date), to: dateOnly(query.date) }
-      : monthRange(selectedMonth!);
+      : hasCustomRange
+        ? { from: dateOnly(query.from!), to: dateOnly(query.to!) }
+        : monthRange(selectedMonth!);
 
     let developerId = query.developerId;
     if (request.session!.role !== UserRole.ADMIN) {
@@ -105,7 +113,7 @@ reportsRouter.get("/", async (request, response, next) => {
       report: {
         filters: {
           developerId: developerId ?? null,
-          mode: query.date ? "date" : "month",
+          mode: query.date ? "date" : hasCustomRange ? "range" : "month",
           date: query.date ?? null,
           month: selectedMonth,
           from: range.from.toISOString().slice(0, 10),

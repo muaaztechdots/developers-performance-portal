@@ -23,6 +23,7 @@ export function DashboardPage() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncingStatuses, setSyncingStatuses] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(false);
   const backgroundSyncRef = useRef(false);
@@ -60,6 +61,7 @@ export function DashboardPage() {
   const refreshStatusesInBackground = useCallback(async (force = false) => {
     if (backgroundSyncRef.current || user?.role !== "ADMIN") return;
     backgroundSyncRef.current = true;
+    if (mountedRef.current) setSyncingStatuses(true);
     try {
       const storedJobIds = readStoredStatusJobIds();
       if (storedJobIds.length) {
@@ -90,6 +92,7 @@ export function DashboardPage() {
       }
     } finally {
       backgroundSyncRef.current = false;
+      if (mountedRef.current) setSyncingStatuses(false);
     }
   }, [loadSummary, monitorStatusJobs, user?.role]);
 
@@ -142,7 +145,7 @@ export function DashboardPage() {
     <div className="dashboard-page page-stack">
       <section className="page-heading">
         <div><p className="welcome-line">Good to see you, {user?.firstName}</p><p>Team status coverage, reported effort, and delivery activity through yesterday.</p></div>
-        <div className="page-heading-actions"><span className="date-chip"><CalendarDays size={17} />{today}</span><button className="secondary-button compact" title="Sync Discord statuses and refresh dashboard data" onClick={() => void refreshStatusesInBackground(true)}><RefreshCw size={16} />Refresh</button></div>
+        <div className="page-heading-actions"><span className="date-chip"><CalendarDays size={17} />{today}</span>{user?.role === "ADMIN" && <button className="secondary-button compact" disabled={syncingStatuses} title="Sync Discord statuses and refresh dashboard data" onClick={() => void refreshStatusesInBackground(true)}><RefreshCw className={syncingStatuses ? "is-spinning" : ""} size={16} />{syncingStatuses ? "Syncing..." : "Sync Discord"}</button>}</div>
       </section>
 
       <section className="metric-grid dashboard-metrics">

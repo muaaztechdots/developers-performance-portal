@@ -49,13 +49,16 @@ describe("buildPerformanceReport", () => {
 });
 
 describe("reportQuerySchema", () => {
-  it("accepts either a month or a specific date", () => {
+  it("accepts a month, a specific date, or a complete date range", () => {
     expect(reportQuerySchema.parse({ month: "2026-09" })).toEqual({ month: "2026-09" });
     expect(reportQuerySchema.parse({ date: "2026-09-12" })).toEqual({ date: "2026-09-12" });
+    expect(reportQuerySchema.parse({ from: "2026-09-01", to: "2026-09-07" })).toEqual({ from: "2026-09-01", to: "2026-09-07" });
   });
 
   it("rejects conflicting or malformed periods", () => {
     expect(() => reportQuerySchema.parse({ month: "2026-13" })).toThrow();
     expect(() => reportQuerySchema.parse({ month: "2026-09", date: "2026-09-12" })).toThrow();
+    expect(() => reportQuerySchema.parse({ from: "2026-09-01" })).toThrow();
+    expect(() => reportQuerySchema.parse({ from: "2026-09-08", to: "2026-09-01" })).toThrow();
   });
 });

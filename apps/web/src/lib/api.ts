@@ -50,11 +50,13 @@ export const api = {
     method: "PATCH",
     body: JSON.stringify(input)
   }),
-  performanceReport: (filters: { developerId?: string; date?: string; month?: string }) => {
+  performanceReport: (filters: { developerId?: string; date?: string; month?: string; from?: string; to?: string }) => {
     const query = new URLSearchParams();
     if (filters.developerId) query.set("developerId", filters.developerId);
     if (filters.date) query.set("date", filters.date);
     if (filters.month) query.set("month", filters.month);
+    if (filters.from) query.set("from", filters.from);
+    if (filters.to) query.set("to", filters.to);
     return request<{ report: PerformanceReport }>(`/reports?${query.toString()}`);
   },
   syncDeveloperTasks: (id: string) => request<{ job: DiscordSyncJob }>(`/developers/${id}/sync-tasks`, { method: "POST" }),

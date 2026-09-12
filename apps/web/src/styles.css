@@ -192,11 +192,29 @@ h1, h2, h3, .brand-name, .metric-value { font-family: "Manrope", sans-serif; }
 .dashboard-developer-row > div small { margin-top: 3px; color: #98a0ae; font-size: 9px; }
 .dashboard-developer-row > svg { color: #a2a9b7; }
 .developer-specialty, .developer-reported-work { color: #737c8e; }
-.report-filters { display: grid; grid-template-columns: minmax(190px, 1.3fr) repeat(2, minmax(150px, .8fr)) auto; gap: 15px; align-items: end; margin-top: 24px; padding: 19px 21px; }
-.report-filters label { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
-.report-filters label > span { color: #687286; font-size: 10px; font-weight: 700; }
+.report-filters { position: relative; display: grid; grid-template-columns: minmax(220px, 1fr) minmax(230px, .85fr) auto; gap: 15px; align-items: end; margin-top: 24px; padding: 19px 21px; }
+.report-filters > label { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
+.report-filters > label > span, .report-period-picker > summary > span { color: #687286; font-size: 10px; font-weight: 700; }
 .report-filters select, .report-filters input { width: 100%; height: 42px; padding: 0 12px; border: 1px solid #dfe3eb; border-radius: 9px; outline: none; color: #3d475b; background: #fff; font: inherit; font-size: 11px; }
 .report-filters select:focus, .report-filters input:focus { border-color: #6d7ee1; box-shadow: 0 0 0 3px rgba(75,99,217,.1); }
+.report-period-picker { position: relative; min-width: 0; }
+.report-period-picker > summary { display: flex; flex-direction: column; gap: 7px; list-style: none; cursor: pointer; }
+.report-period-picker > summary::-webkit-details-marker { display: none; }
+.report-period-picker > summary > div { display: flex; height: 42px; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid #dfe3eb; border-radius: 9px; color: #687286; background: #fff; }
+.report-period-picker > summary strong { overflow: hidden; color: #3d475b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.report-period-picker > summary svg:last-child { margin-left: auto; transition: transform .18s ease; }
+.report-period-picker[open] > summary > div { border-color: #6d7ee1; box-shadow: 0 0 0 3px rgba(75,99,217,.1); }
+.report-period-picker[open] > summary svg:last-child { transform: rotate(180deg); }
+.report-period-menu { position: absolute; z-index: 20; top: calc(100% + 9px); right: 0; display: grid; width: 320px; gap: 12px; padding: 15px; border: 1px solid #e2e6ee; border-radius: 12px; background: #fff; box-shadow: 0 16px 42px rgba(45,55,85,.16); }
+.report-period-menu > span { color: #929aaa; font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.report-period-presets { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+.report-period-presets button { min-height: 36px; padding: 0 10px; border: 1px solid #e1e5ed; border-radius: 8px; color: #596477; background: #f9fafc; font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; }
+.report-period-presets button:hover { border-color: #bfc8ea; color: #4b63d9; background: #f4f6ff; }
+.report-period-presets button.active { border-color: #6d7ee1; color: #4b63d9; background: #eef1ff; }
+.report-period-menu label { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+.report-period-menu label > span { color: #687286; font-size: 10px; font-weight: 700; }
+.report-auto-status { display: flex; height: 42px; align-items: center; gap: 7px; color: #8c95a5; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.report-auto-status.loading { color: #586fd6; }
 .report-scope { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; color: #727c90; font-size: 11px; }
 .report-scope strong { color: #343e53; font-size: 12px; }
 .report-metrics { margin-top: 13px; }
@@ -463,7 +481,7 @@ h1, h2, h3, .brand-name, .metric-value { font-family: "Manrope", sans-serif; }
   .project-list { padding-right: 18px; padding-left: 18px; }
   .project-form-fields { padding-right: 19px; padding-left: 19px; }
   .report-filters, .report-quality-grid { grid-template-columns: 1fr; }
-  .report-filters .primary-button { width: 100%; }
+  .report-period-menu { right: auto; left: 0; width: min(320px, calc(100vw - 72px)); }
   .report-scope { align-items: flex-start; flex-direction: column; gap: 4px; }
   .report-daily-panel { overflow-x: auto; }
   .report-engineer-row { grid-template-columns: 38px minmax(0, 1fr) auto; padding: 9px 0; }

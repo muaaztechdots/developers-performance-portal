@@ -64,7 +64,7 @@ export type ProjectInput = {
 export type PerformanceReport = {
   filters: {
     developerId: string | null;
-    mode: "date" | "month";
+    mode: "date" | "month" | "range";
     date: string | null;
     month: string | null;
     from: string;
