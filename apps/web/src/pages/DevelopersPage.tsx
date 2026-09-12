@@ -3,31 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
+import { currentStatusSyncDate, readStoredStatusJobIds, STATUS_AUTO_SYNC_KEY, STATUS_SYNC_JOB_IDS_KEY, storeStatusJobIds } from "../lib/status-sync-session";
 import type { Developer, DeveloperStatusSyncJob } from "../types";
 
-const AUTO_SYNC_KEY = "developer-status-auto-sync-date";
-const ACTIVE_JOB_IDS_KEY = "developer-status-sync-job-ids";
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-function pakistanDateKey() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Karachi",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).formatToParts(new Date());
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
-function readStoredJobIds() {
-  try {
-    const value = JSON.parse(sessionStorage.getItem(ACTIVE_JOB_IDS_KEY) ?? "[]");
-    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
-  } catch {
-    return [];
-  }
-}
 
 export function DevelopersPage() {
   const { user } = useAuth();
@@ -76,7 +55,7 @@ export function DevelopersPage() {
       }
 
       if (!mountedRef.current) return;
-      sessionStorage.removeItem(ACTIVE_JOB_IDS_KEY);
+      sessionStorage.removeItem(STATUS_SYNC_JOB_IDS_KEY);
       await loadDevelopers();
       const failed = jobs.filter((job) => job.status === "FAILED").length;
       const importedTasks = jobs.reduce((total, job) => total + job.importedTasks, 0);
@@ -104,7 +83,7 @@ export function DevelopersPage() {
     }
     try {
       const { jobs } = await api.syncAllDiscordStatuses();
-      if (jobs.length) sessionStorage.setItem(ACTIVE_JOB_IDS_KEY, JSON.stringify(jobs.map((job) => job.id)));
+      storeStatusJobIds(jobs.map((job) => job.id));
       if (!mountedRef.current) return;
       await loadDevelopers();
       if (jobs.length === 0) {
@@ -133,7 +112,7 @@ export function DevelopersPage() {
       }
       if (!mountedRef.current || user?.role !== "ADMIN") return;
 
-      const storedIds = readStoredJobIds();
+      const storedIds = readStoredStatusJobIds();
       if (storedIds.length) {
         try {
           const { jobs } = await api.discordStatusSyncProgress(storedIds);
@@ -141,15 +120,15 @@ export function DevelopersPage() {
             await monitorJobs(jobs);
             return;
           }
-          sessionStorage.removeItem(ACTIVE_JOB_IDS_KEY);
+          sessionStorage.removeItem(STATUS_SYNC_JOB_IDS_KEY);
         } catch {
-          sessionStorage.removeItem(ACTIVE_JOB_IDS_KEY);
+          sessionStorage.removeItem(STATUS_SYNC_JOB_IDS_KEY);
         }
       }
 
-      const today = pakistanDateKey();
-      if (sessionStorage.getItem(AUTO_SYNC_KEY) !== today) {
-        sessionStorage.setItem(AUTO_SYNC_KEY, today);
+      const today = currentStatusSyncDate();
+      if (sessionStorage.getItem(STATUS_AUTO_SYNC_KEY) !== today) {
+        sessionStorage.setItem(STATUS_AUTO_SYNC_KEY, today);
         await syncAllStatuses();
       }
     };

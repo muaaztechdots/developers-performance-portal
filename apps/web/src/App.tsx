@@ -6,6 +6,8 @@ import { DevelopersPage } from "./pages/DevelopersPage";
 import { DeveloperEditPage } from "./pages/DeveloperEditPage";
 import { DeveloperTasksPage } from "./pages/DeveloperTasksPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ProjectFormPage } from "./pages/ProjectFormPage";
+import { ProjectsPage } from "./pages/ProjectsPage";
 import { TaskDetailPage } from "./pages/TaskDetailPage";
 
 function ProtectedLayout() {
@@ -24,6 +26,9 @@ export default function App() {
         <Route path="/developers/:developerId/edit" element={<DeveloperEditPage />} />
         <Route path="/developers/:developerId" element={<DeveloperTasksPage />} />
         <Route path="/developers/:developerId/tasks/:taskId" element={<TaskDetailPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/projects/new" element={<ProjectFormPage />} />
+        <Route path="/projects/:projectId/edit" element={<ProjectFormPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

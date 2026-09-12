@@ -42,6 +42,66 @@ export type UpdateDeveloperInput = {
 
 export type DeveloperProfile = Omit<Developer, "_count" | "yesterdayStatusSubmitted">;
 
+export type Project = {
+  id: string;
+  name: string;
+  normalizedName: string;
+  aliases: Array<{
+    id: string;
+    name: string;
+    normalizedName: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+  _count: { tasks: number };
+};
+
+export type ProjectInput = {
+  name: string;
+  aliases: string[];
+};
+
+export type DashboardSummary = {
+  yesterdayDate: string;
+  yesterdayIsWeekend: boolean;
+  team: {
+    total: number;
+    engineering: number;
+    qa: number;
+  };
+  yesterday: {
+    submitted: number;
+    missing: number;
+    coveragePercent: number | null;
+    taskCount: number;
+    reportedMinutes: number;
+  };
+  recentDays: Array<{
+    date: string;
+    isWeekend: boolean;
+    submitted: number;
+    missing: number;
+    coveragePercent: number | null;
+    taskCount: number;
+    reportedMinutes: number;
+  }>;
+  developerStatuses: Array<{
+    id: string;
+    name: string;
+    jobTitle: string | null;
+    specialty: "ENGINEERING" | "QA";
+    submitted: boolean;
+    taskCount: number;
+    reportedMinutes: number;
+  }>;
+  projectActivity: Array<{
+    id: string | null;
+    name: string;
+    taskCount: number;
+    reportedMinutes: number;
+  }>;
+};
+
 export type DiscordSyncJob = {
   id: string;
   status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";

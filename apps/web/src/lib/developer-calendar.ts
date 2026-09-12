@@ -5,7 +5,7 @@ function normalizeDate(value: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
 }
 
-export function yesterdayInPakistan(now = new Date()) {
+export function todayInPakistan(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: REPORTING_TIME_ZONE,
     year: "numeric",
@@ -14,7 +14,11 @@ export function yesterdayInPakistan(now = new Date()) {
   }).formatToParts(now);
   const value = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((part) => part.type === type)?.value);
-  const yesterday = new Date(Date.UTC(value("year"), value("month") - 1, value("day")));
+  return new Date(Date.UTC(value("year"), value("month") - 1, value("day"))).toISOString().slice(0, 10);
+}
+
+export function yesterdayInPakistan(now = new Date()) {
+  const yesterday = new Date(`${todayInPakistan(now)}T00:00:00.000Z`);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   return yesterday.toISOString().slice(0, 10);
 }

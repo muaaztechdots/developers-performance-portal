@@ -30,7 +30,7 @@ const timezoneSchema = z.string().trim().min(1).max(100).refine((timezone) => {
 export const updateDeveloperSchema = z.object({
   email: z.string().trim().pipe(z.email()).transform((value) => value.toLowerCase()),
   firstName: z.string().trim().min(1).max(100),
-  lastName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().max(100),
   jobTitle: z.string().trim().max(150).transform((value) => value || null),
   department: z.string().trim().max(150).transform((value) => value || null),
   timezone: timezoneSchema,

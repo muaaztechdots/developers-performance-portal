@@ -8,6 +8,54 @@ import { authenticate } from "../middleware/authenticate.js";
 export const tasksRouter = Router();
 tasksRouter.use(authenticate);
 
+export const taskProjectAssignmentSchema = z.object({
+  projectId: z.uuid().nullable()
+});
+
+tasksRouter.patch("/:id/project", async (request, response, next) => {
+  try {
+    if (request.session!.role !== UserRole.ADMIN) {
+      response.status(403).json({ message: "Administrator access required." });
+      return;
+    }
+
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { projectId } = taskProjectAssignmentSchema.parse(request.body);
+    const task = await prisma.statusTask.findFirst({
+      where: { id, statusReport: { developer: { user: { role: UserRole.DEVELOPER } } } },
+      select: { id: true }
+    });
+    if (!task) {
+      response.status(404).json({ message: "Task not found." });
+      return;
+    }
+
+    const project = projectId
+      ? await prisma.project.findUnique({ where: { id: projectId }, select: { id: true, name: true } })
+      : null;
+    if (projectId && !project) {
+      response.status(404).json({ message: "Project not found." });
+      return;
+    }
+
+    const updatedTask = await prisma.statusTask.update({
+      where: { id },
+      data: {
+        projectId: project?.id ?? null,
+        projectName: project?.name ?? null
+      },
+      select: {
+        id: true,
+        projectName: true,
+        project: { select: { id: true, name: true } }
+      }
+    });
+    response.json({ task: updatedTask });
+  } catch (error) {
+    next(error);
+  }
+});
+
 tasksRouter.get("/:id", async (request, response, next) => {
   try {
     const { id } = z.object({ id: z.uuid() }).parse(request.params);

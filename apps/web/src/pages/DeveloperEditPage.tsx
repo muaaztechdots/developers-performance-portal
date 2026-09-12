@@ -96,7 +96,7 @@ export function DeveloperEditPage() {
 
         <div className="developer-edit-grid">
           <label className="edit-field"><span>First name</span><input required maxLength={100} value={form.firstName} onChange={(event) => updateField("firstName", event.target.value)} /></label>
-          <label className="edit-field"><span>Last name</span><input required maxLength={100} value={form.lastName} onChange={(event) => updateField("lastName", event.target.value)} /></label>
+          <label className="edit-field"><span>Last name <small>(optional)</small></span><input maxLength={100} value={form.lastName} onChange={(event) => updateField("lastName", event.target.value)} /></label>
           <label className="edit-field edit-field-wide"><span>Email address</span><input required type="email" maxLength={320} value={form.email} onChange={(event) => updateField("email", event.target.value)} /></label>
           <label className="edit-field"><span>Job title</span><input maxLength={150} placeholder="e.g. Senior Backend Engineer" value={form.jobTitle} onChange={(event) => updateField("jobTitle", event.target.value)} /></label>
           <label className="edit-field"><span>Department</span><input maxLength={150} placeholder="e.g. Engineering" value={form.department} onChange={(event) => updateField("department", event.target.value)} /></label>

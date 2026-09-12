@@ -36,4 +36,19 @@ describe("updateDeveloperSchema", () => {
       isActive: true
     })).toThrow();
   });
+
+  it("allows an empty last name", () => {
+    const result = updateDeveloperSchema.parse({
+      email: "dev@example.com",
+      firstName: "Dev",
+      lastName: "",
+      jobTitle: "Developer",
+      department: "Engineering",
+      timezone: "Asia/Karachi",
+      specialty: "ENGINEERING",
+      isActive: true
+    });
+
+    expect(result.lastName).toBe("");
+  });
 });

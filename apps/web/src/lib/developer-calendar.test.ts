@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDeveloperCalendar, yesterdayInPakistan } from "./developer-calendar";
+import { buildDeveloperCalendar, todayInPakistan, yesterdayInPakistan } from "./developer-calendar";
 
 describe("buildDeveloperCalendar", () => {
   it("fills every date through yesterday and identifies weekends", () => {
@@ -26,6 +26,7 @@ describe("buildDeveloperCalendar", () => {
 
 describe("yesterdayInPakistan", () => {
   it("uses the Pakistan calendar date", () => {
+    expect(todayInPakistan(new Date("2026-09-12T20:30:00.000Z"))).toBe("2026-09-13");
     expect(yesterdayInPakistan(new Date("2026-09-12T20:30:00.000Z"))).toBe("2026-09-12");
   });
 });

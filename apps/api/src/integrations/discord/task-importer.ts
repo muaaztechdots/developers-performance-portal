@@ -2,7 +2,7 @@ import { ReportPeriod, ReportSource, UserRole, type Prisma } from "@prisma/clien
 import { REST, Routes } from "discord.js";
 import { config } from "../../config.js";
 import { prisma } from "../../lib/prisma.js";
-import { resolveProject } from "./project-matcher.js";
+import { loadProjectCatalog, selectMatchingProject } from "./project-matcher.js";
 import { parseDiscordStatuses } from "./status-parser.js";
 
 type DiscordMessage = {
@@ -56,6 +56,7 @@ async function importTodayTasks(
   message: DiscordMessage
 ) {
   const parsedReports = parseDiscordStatuses(message.content);
+  const projectCatalog = await loadProjectCatalog(transaction);
   let importedReports = 0;
   let importedTasks = 0;
 
@@ -91,11 +92,11 @@ async function importTodayTasks(
 
     const taskRows = [];
     for (const task of todayTasks) {
-      const project = await resolveProject(transaction, task.projectName);
+      const project = selectMatchingProject(projectCatalog, task.projectName);
       taskRows.push({
         ...task,
         projectId: project?.id ?? null,
-        projectName: project?.name ?? task.projectName,
+        projectName: project?.name ?? null,
         statusReportId: report.id
       });
     }

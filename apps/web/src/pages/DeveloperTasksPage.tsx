@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
-import { buildDeveloperCalendar } from "../lib/developer-calendar";
+import { buildDeveloperCalendar, todayInPakistan, yesterdayInPakistan } from "../lib/developer-calendar";
 import type { DeveloperDetail, DiscordSyncJob } from "../types";
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -60,7 +60,10 @@ export function DeveloperTasksPage() {
 
   const reports = developer.statusReports.filter((report) => report.tasks.length > 0);
   const reportsByDate = new Map(reports.map((report) => [report.reportDate.slice(0, 10), report]));
-  const calendarDays = buildDeveloperCalendar(developer.statusReports.map((report) => report.reportDate));
+  const calendarDays = buildDeveloperCalendar(
+    [...developer.statusReports.map((report) => report.reportDate), yesterdayInPakistan()],
+    todayInPakistan()
+  );
   const missingWeekdays = calendarDays.filter((day) => !day.isWeekend && !reportsByDate.has(day.date)).length;
   const syncing = syncJob?.status === "PENDING" || syncJob?.status === "RUNNING";
 

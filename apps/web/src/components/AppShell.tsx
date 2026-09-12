@@ -1,4 +1,4 @@
-import { BarChart3, Bell, ChevronDown, Code2, LayoutDashboard, LogOut, Menu, Search, Users, X } from "lucide-react";
+import { BarChart3, Bell, ChevronDown, Code2, FolderKanban, LayoutDashboard, LogOut, Menu, Search, Users, X } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -6,7 +6,8 @@ import { Brand } from "./Brand";
 
 const navigation = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { label: "Developers", path: "/developers", icon: Users }
+  { label: "Developers", path: "/developers", icon: Users },
+  { label: "Projects", path: "/projects", icon: FolderKanban }
 ];
 
 export function AppShell() {

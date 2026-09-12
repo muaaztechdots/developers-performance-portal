@@ -1,8 +1,10 @@
-import { AlertCircle, ArrowLeft, Clock3, ExternalLink, MessageSquareText, Ticket } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock3, ExternalLink, FolderKanban, MessageSquareText, Save, Ticket } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
-import type { ClickUpEnrichment, TaskDetail } from "../types";
+import type { ClickUpEnrichment, Project, TaskDetail } from "../types";
 
 function durationLabel(minutes: number | null) {
   if (minutes === null) return "No time reported";
@@ -39,17 +41,50 @@ function ClickUpEmptyState({ state }: { state: ClickUpEnrichment["state"] }) {
 
 export function TaskDetailPage() {
   const { developerId = "", taskId = "" } = useParams();
+  const { user } = useAuth();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [clickup, setClickup] = useState<ClickUpEnrichment | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [savingProject, setSavingProject] = useState(false);
+  const [projectNotice, setProjectNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.task(taskId)
-      .then((result) => { setTask(result.task); setClickup(result.clickup); })
+    Promise.all([
+      api.task(taskId),
+      user?.role === "ADMIN" ? api.projects() : Promise.resolve({ projects: [] })
+    ])
+      .then(([result, projectResult]) => {
+        setTask(result.task);
+        setClickup(result.clickup);
+        setProjects(projectResult.projects);
+        setSelectedProjectId(result.task.project?.id ?? "");
+      })
       .catch((caught) => setError(caught instanceof Error ? caught.message : "Could not load task."))
       .finally(() => setLoading(false));
-  }, [taskId]);
+  }, [taskId, user?.role]);
+
+  async function saveProjectAssignment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!task) return;
+    setSavingProject(true);
+    setProjectNotice(null);
+    try {
+      const { task: updatedTask } = await api.assignTaskProject(task.id, selectedProjectId || null);
+      setTask((current) => current ? { ...current, ...updatedTask } : current);
+      setSelectedProjectId(updatedTask.project?.id ?? "");
+      setProjectNotice({
+        type: "success",
+        message: updatedTask.project ? `Assigned to ${updatedTask.project.name}.` : "Task marked as unassigned."
+      });
+    } catch (saveError) {
+      setProjectNotice({ type: "error", message: saveError instanceof Error ? saveError.message : "Could not update project." });
+    } finally {
+      setSavingProject(false);
+    }
+  }
 
   if (loading) return <div className="empty-state"><div className="loading-mark" /><h3>Loading task details…</h3></div>;
   if (error || !task || !clickup) return <div className="empty-state"><AlertCircle size={28} /><h3>{error ?? "Task not found"}</h3><Link to={`/developers/${developerId}`}>Return to tasks</Link></div>;
@@ -65,6 +100,17 @@ export function TaskDetailPage() {
           <span><Clock3 size={15} />{durationLabel(task.durationMinutes)}</span>
           {task.taskUrl && <a href={task.taskUrl} target="_blank" rel="noreferrer">Open original link <ExternalLink size={14} /></a>}
         </div>
+        {user?.role === "ADMIN" && <div className="task-project-assignment">
+          <div className="task-project-assignment-copy"><span><FolderKanban size={18} /></span><div><strong>Project assignment</strong><small>Manually override the project selected during Discord sync.</small></div></div>
+          <form onSubmit={saveProjectAssignment}>
+            <select aria-label="Task project" value={selectedProjectId} onChange={(event) => { setSelectedProjectId(event.target.value); setProjectNotice(null); }}>
+              <option value="">Unassigned</option>
+              {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <button className="primary-button compact" type="submit" disabled={savingProject || selectedProjectId === (task.project?.id ?? "")}><Save size={15} />{savingProject ? "Saving..." : "Save project"}</button>
+          </form>
+          {projectNotice && <p className={`task-project-notice ${projectNotice.type}`}>{projectNotice.type === "success" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}{projectNotice.message}</p>}
+        </div>}
       </section>
 
       {clickup.state !== "AVAILABLE" || !clickup.ticket ? <ClickUpEmptyState state={clickup.state} /> : <>

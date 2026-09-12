@@ -75,7 +75,18 @@ The API reads only the configured `daily-status` channel. Each thread is treated
 
 The integration is strictly read-only on Discord: it does not subscribe to server-wide message events and only fetches the configured channel or selected developer thread during a sync. It never sends, edits, deletes, reacts to, archives, or otherwise changes anything in Discord. It writes imported data only to this application's PostgreSQL database.
 
-Only tasks under each message's `Today:` section are imported. Dates come from the message heading; task time and task link remain empty when omitted. Project spelling and spacing variants are normalized into one project with aliases.
+Only tasks under each message's `Today:` section are imported. Dates come from the message heading; task time and task link remain empty when omitted. A Discord task is linked only when its project heading matches a project already in the project catalog; otherwise its project fields remain empty for later assignment. Imports never create projects or aliases.
+
+## Project catalog
+
+The Projects page is the source of truth for task classification. Administrators can add projects, rename them, and maintain explicit aliases. Matching ignores casing, spacing, punctuation, a leading `Project`, and common platform suffixes such as `Web`, `Website`, `App`, `Mobile App`, `iOS`, and `Android`. It also accepts conservative spelling variations. Renaming a project updates the display name of its currently assigned tasks without changing their foreign-key relationship.
+
+Project endpoints:
+
+- `GET /api/projects` - list catalog projects, aliases, and task counts
+- `GET /api/projects/:id` - read one project
+- `POST /api/projects` - add a project (administrator only)
+- `PATCH /api/projects/:id` - update a project and aliases (administrator only)
 
 For administrators, opening the Developers page automatically queues one status-import job per Discord-linked developer once per browser session and day. The separate worker processes the queue one developer at a time. The page shows live message counts, per-developer progress, failures, and whether each developer submitted an update dated yesterday in the `Asia/Karachi` timezone. **Sync all statuses** can start another batch manually.
 
