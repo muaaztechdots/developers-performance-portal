@@ -31,7 +31,7 @@ function percentage(submitted: number, expected: number) {
   return expected > 0 ? Math.round((submitted / expected) * 100) : 0;
 }
 
-export function yesterdayInTimeZone(timeZone = "Asia/Karachi", now = new Date()) {
+export function previousWorkingDayInTimeZone(timeZone = "Asia/Karachi", now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
@@ -39,9 +39,12 @@ export function yesterdayInTimeZone(timeZone = "Asia/Karachi", now = new Date())
     day: "numeric"
   }).formatToParts(now);
   const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
-  const yesterday = new Date(Date.UTC(value("year"), value("month") - 1, value("day")));
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  return yesterday;
+  const previousWorkingDay = new Date(Date.UTC(value("year"), value("month") - 1, value("day")));
+  previousWorkingDay.setUTCDate(previousWorkingDay.getUTCDate() - 1);
+  while (previousWorkingDay.getUTCDay() === 0 || previousWorkingDay.getUTCDay() === 6) {
+    previousWorkingDay.setUTCDate(previousWorkingDay.getUTCDate() - 1);
+  }
+  return previousWorkingDay;
 }
 
 export function sevenDayWindow(endDate: Date) {

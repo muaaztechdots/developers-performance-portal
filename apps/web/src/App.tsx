@@ -7,6 +7,7 @@ import { DeveloperEditPage } from "./pages/DeveloperEditPage";
 import { DeveloperTasksPage } from "./pages/DeveloperTasksPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProjectFormPage } from "./pages/ProjectFormPage";
+import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { TaskDetailPage } from "./pages/TaskDetailPage";
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/developers/:developerId/tasks/:taskId" element={<TaskDetailPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/new" element={<ProjectFormPage />} />
+        <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
         <Route path="/projects/:projectId/edit" element={<ProjectFormPage />} />
         <Route path="/reports" element={<ReportsPage />} />
       </Route>

@@ -6,9 +6,9 @@ import {
 } from "./service.js";
 import { prisma } from "../../lib/prisma.js";
 
-export const CLICKUP_REFRESH_INTERVAL_MS = 5 * 60 * 1_000;
+export const CLICKUP_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 
-type ClickUpSyncSummary = {
+export type ClickUpSyncSummary = {
   linkedTasks: number;
   processedTickets: number;
   syncedTickets: number;
@@ -16,11 +16,17 @@ type ClickUpSyncSummary = {
   rateLimitedUntil: Date | null;
 };
 
-async function linkUntrackedTasks() {
+export type ClickUpSyncOptions = {
+  developerId?: string;
+  force?: boolean;
+};
+
+async function linkUntrackedTasks(developerId?: string) {
   const tasks = await prisma.statusTask.findMany({
     where: {
       taskUrl: { contains: "app.clickup.com/t/", mode: "insensitive" },
-      clickUpTaskId: null
+      clickUpTaskId: null,
+      statusReport: developerId ? { developerId } : undefined
     },
     select: { id: true, taskUrl: true }
   });
@@ -46,7 +52,7 @@ async function linkUntrackedTasks() {
   return linkedTasks;
 }
 
-export async function syncClickUpTickets(): Promise<ClickUpSyncSummary> {
+export async function syncClickUpTickets(options: ClickUpSyncOptions = {}): Promise<ClickUpSyncSummary> {
   const summary: ClickUpSyncSummary = {
     linkedTasks: 0,
     processedTickets: 0,
@@ -56,12 +62,12 @@ export async function syncClickUpTickets(): Promise<ClickUpSyncSummary> {
   };
   if (!clickUpIsConfigured()) return summary;
 
-  summary.linkedTasks = await linkUntrackedTasks();
+  summary.linkedTasks = await linkUntrackedTasks(options.developerId);
   const staleBefore = new Date(Date.now() - CLICKUP_REFRESH_INTERVAL_MS);
   const tickets = await prisma.clickUpTicket.findMany({
     where: {
-      tasks: { some: {} },
-      OR: [
+      tasks: { some: options.developerId ? { statusReport: { developerId: options.developerId } } : {} },
+      OR: options.force ? undefined : [
         { lastSyncAttemptAt: null },
         { lastSyncAttemptAt: { lte: staleBefore } }
       ]

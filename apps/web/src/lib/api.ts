@@ -1,4 +1,4 @@
-import type { ClickUpEnrichment, DashboardSummary, Developer, DeveloperDetail, DeveloperProfile, DeveloperStatusSyncJob, DiscordSyncJob, PerformanceReport, Project, ProjectInput, TaskDetail, UpdateDeveloperInput, User } from "../types";
+import type { ClickUpEnrichment, DashboardSummary, Developer, DeveloperDetail, DeveloperProfile, DeveloperStatusSyncJob, DiscordSyncJob, PerformanceReport, Project, ProjectDetail, ProjectInput, TaskDetail, UpdateDeveloperInput, User } from "../types";
 
 export type DiscordDeveloperSyncResult = {
   threadsScanned: number;
@@ -42,6 +42,7 @@ export const api = {
   }),
   projects: () => request<{ projects: Project[] }>("/projects"),
   project: (id: string) => request<{ project: Project }>(`/projects/${id}`),
+  projectDetail: (id: string) => request<{ project: ProjectDetail }>(`/projects/${id}/detail`),
   createProject: (input: ProjectInput) => request<{ project: Project }>("/projects", {
     method: "POST",
     body: JSON.stringify(input)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDashboardSummary, sevenDayWindow, yesterdayInTimeZone } from "../src/lib/dashboard-summary.js";
+import { buildDashboardSummary, previousWorkingDayInTimeZone, sevenDayWindow } from "../src/lib/dashboard-summary.js";
 
 describe("dashboard summary", () => {
   it("calculates yesterday coverage, reported work, and project activity", () => {
@@ -45,8 +45,11 @@ describe("dashboard summary", () => {
     expect(summary.yesterday).toMatchObject({ submitted: 0, missing: 0, coveragePercent: null });
   });
 
-  it("builds dates using the Pakistan calendar", () => {
-    expect(yesterdayInTimeZone("Asia/Karachi", new Date("2026-09-12T20:30:00.000Z")).toISOString().slice(0, 10)).toBe("2026-09-12");
+  it("uses the previous working day in the Pakistan calendar", () => {
+    expect(previousWorkingDayInTimeZone("Asia/Karachi", new Date("2026-09-14T10:00:00.000Z")).toISOString().slice(0, 10)).toBe("2026-09-11");
+    expect(previousWorkingDayInTimeZone("Asia/Karachi", new Date("2026-09-13T10:00:00.000Z")).toISOString().slice(0, 10)).toBe("2026-09-11");
+    expect(previousWorkingDayInTimeZone("Asia/Karachi", new Date("2026-09-12T10:00:00.000Z")).toISOString().slice(0, 10)).toBe("2026-09-11");
+    expect(previousWorkingDayInTimeZone("Asia/Karachi", new Date("2026-09-10T10:00:00.000Z")).toISOString().slice(0, 10)).toBe("2026-09-09");
     expect(sevenDayWindow(new Date("2026-09-11T00:00:00.000Z"))).toEqual([
       "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"
     ]);

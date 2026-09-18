@@ -27,7 +27,7 @@ Task: https://app.clickup.com/t/42060460/86eyu17hf [WIP]`);
     expect(result?.tasks.every((task) => !("status" in task))).toBe(true);
   });
 
-  it("parses parenthesized hours and inherits a heading ticket link", () => {
+  it("groups bullet details under linked task headings", () => {
     const result = parseDiscordStatus(`11/09/2026  Today:
 EasyRinger [Upgrade Rails 6.0 to 7.x](https://trello.com/c/bd9ZAhjT/653-upgrade-rails-60-to-7x) [DONE]
 - Deployed final working to staging and tested multiple times (1hr)
@@ -36,10 +36,60 @@ EasyRinger [Upgrade Rails 6.0 to 7.x](https://trello.com/c/bd9ZAhjT/653-upgrade-
 EasyRinger [Mobile App Implementation](https://trello.com/c/VcRMJgBG/686-mobile-app-implementation) [WIP]
 - Reviewed the plan and manager UI mockups (2hr)`);
 
-    expect(result?.tasks.map((task) => task.durationMinutes)).toEqual([60, 60, 60, 120]);
-    expect(result?.tasks.map((task) => task.projectName)).toEqual(["EasyRinger", "EasyRinger", "EasyRinger", "EasyRinger"]);
+    expect(result?.tasks.map((task) => task.description)).toEqual(["Upgrade Rails 6.0 to 7.x", "Mobile App Implementation"]);
+    expect(result?.tasks.map((task) => task.durationMinutes)).toEqual([180, 120]);
+    expect(result?.tasks.map((task) => task.projectName)).toEqual(["EasyRinger", "EasyRinger"]);
     expect(result?.tasks[0].taskUrl).toContain("bd9ZAhjT");
-    expect(result?.tasks[3].taskUrl).toContain("VcRMJgBG");
+    expect(result?.tasks[0].details?.split("\n")).toHaveLength(3);
+    expect(result?.tasks[1].taskUrl).toContain("VcRMJgBG");
+    expect(result?.tasks[1].details).toContain("Reviewed the plan and manager UI mockups (2hr)");
+  });
+
+  it("groups Shakil's bullet details under two-line task headings", () => {
+    const result = parseDiscordStatus(`17/09/2026
+Today:
+
+EasyRinger
+Mobile App Implementation [WIP]
+
+- Built the messages screens (list, thread, compose) plus the controller and US block policy (2hr)
+- Wired the Message button and unread count into the home screen (30m)
+- Wrote specs, caught a real country lookup bug, and fixed two bad test assertions (1hr10m)
+- Loaded the screens in browser and fixed a broken Alpine JSON attribute bug (1h)
+- Built the biometric toggle endpoint, hit the schema and DB issues, then flagged a design gap in the rememberable step and checked with the manager (1hr20m)
+- Built rememberable properly, hit a Devise quirk that silently drops the naive remember approach (1h30m)
+- Wrote specs proving the dashboard stays untouched and mobile remembers correctly, hit the DB issue (40m)
+
+EasyRinger
+[Chrome Extension](https://trello.com/c/OzlAjFC5/672-chrome-extension)  [WIP]
+- Got rejected, reviewer couldn't connect since develop never got merged down to master and we're pointed at production. Asked client to merge to master. (1h)`);
+
+    expect(result?.reportDateIso).toBe("2026-09-17");
+    expect(result?.tasks).toHaveLength(2);
+    expect(result?.tasks.map((task) => task.projectName)).toEqual(["EasyRinger", "EasyRinger"]);
+    expect(result?.tasks.map((task) => task.description)).toEqual(["Mobile App Implementation", "Chrome Extension"]);
+    expect(result?.tasks.map((task) => task.durationMinutes)).toEqual([490, 60]);
+    expect(result?.tasks[0].details?.split("\n")).toHaveLength(7);
+    expect(result?.tasks[0].details).toContain("Built the messages screens (list, thread, compose) plus the controller and US block policy (2hr)");
+    expect(result?.tasks[1].details).toContain("Got rejected, reviewer couldn't connect");
+    expect(result?.tasks[1].taskUrl).toBe("https://trello.com/c/OzlAjFC5/672-chrome-extension");
+  });
+
+  it("groups bullet details when the task heading has no status marker", () => {
+    const result = parseDiscordStatus(`18/09/2026
+Today:
+Cohabit
+Claims API
+- Implemented the secured claims endpoint (2h)
+- Tested the complete claims flow (30m)`);
+
+    expect(result?.tasks).toHaveLength(1);
+    expect(result?.tasks[0]).toMatchObject({
+      projectName: "Cohabit",
+      description: "Claims API",
+      durationMinutes: 150,
+      details: "Implemented the secured claims endpoint (2h)\nTested the complete claims flow (30m)"
+    });
   });
 
   it("parses multiple dated reports and project headings in one message", () => {

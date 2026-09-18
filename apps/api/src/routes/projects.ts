@@ -62,6 +62,72 @@ projectsRouter.get("/", async (_request, response, next) => {
   }
 });
 
+projectsRouter.get("/:id/detail", async (request, response, next) => {
+  try {
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: { aliases: { orderBy: { name: "asc" } } }
+    });
+    if (!project) {
+      response.status(404).json({ message: "Project not found." });
+      return;
+    }
+
+    const taskVisibility: Prisma.StatusTaskWhereInput = {
+      projectId: id,
+      statusReport: {
+        developer: {
+          user: {
+            role: UserRole.DEVELOPER,
+            ...(request.session!.role === UserRole.ADMIN ? {} : { id: request.session!.sub })
+          }
+        }
+      }
+    };
+    const tasks = await prisma.statusTask.findMany({
+      where: taskVisibility,
+      orderBy: [
+        { statusReport: { reportDate: "desc" } },
+        { sortOrder: "asc" },
+        { createdAt: "asc" }
+      ],
+      select: {
+        id: true,
+        description: true,
+        details: true,
+        durationMinutes: true,
+        taskUrl: true,
+        statusReport: {
+          select: {
+            reportDate: true,
+            developer: {
+              select: {
+                id: true,
+                user: { select: { firstName: true, lastName: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+    const totalMinutes = tasks.reduce((total, task) => total + (task.durationMinutes ?? 0), 0);
+    const timedTaskCount = tasks.filter((task) => task.durationMinutes !== null).length;
+    const developerCount = new Set(tasks.map((task) => task.statusReport.developer.id)).size;
+
+    response.json({
+      project: {
+        ...project,
+        _count: { tasks: tasks.length },
+        stats: { taskCount: tasks.length, totalMinutes, timedTaskCount, developerCount },
+        tasks
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 projectsRouter.get("/:id", async (request, response, next) => {
   try {
     const { id } = z.object({ id: z.uuid() }).parse(request.params);

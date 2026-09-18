@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { DeveloperSpecialty, ReportPeriod, SyncJobStatus, UserRole } from "@prisma/client";
 import { parseClickUpTaskId } from "../integrations/clickup/service.js";
 import { findGitHubPullRequestUrl } from "../lib/github-pull-request.js";
+import { previousWorkingDayInTimeZone } from "../lib/dashboard-summary.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -40,22 +41,9 @@ export const updateDeveloperSchema = z.object({
   isActive: z.boolean()
 });
 
-function yesterdayInPakistan() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Karachi",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric"
-  }).formatToParts(new Date());
-  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value);
-  const today = new Date(Date.UTC(part("year"), part("month") - 1, part("day")));
-  today.setUTCDate(today.getUTCDate() - 1);
-  return today;
-}
-
 developersRouter.get("/", async (_request, response, next) => {
   try {
-    const yesterdayDate = yesterdayInPakistan();
+    const yesterdayDate = previousWorkingDayInTimeZone();
     const developers = await prisma.developer.findMany({
       where: { user: { role: UserRole.DEVELOPER } },
       orderBy: { user: { firstName: "asc" } },

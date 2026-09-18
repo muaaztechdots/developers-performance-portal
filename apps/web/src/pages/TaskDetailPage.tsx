@@ -101,6 +101,7 @@ export function TaskDetailPage() {
           <span><Clock3 size={15} />{durationLabel(task.durationMinutes)}</span>
           {task.taskUrl && <a href={task.taskUrl} target="_blank" rel="noreferrer">Open original link <ExternalLink size={14} /></a>}
         </div>
+        {task.details && <div className="task-detail-work-items"><h2>Task details</h2><ul>{task.details.split("\n").map((detail, index) => <li key={`${index}-${detail}`}>{detail}</li>)}</ul></div>}
         {user?.role === "ADMIN" && <div className="task-project-assignment">
           <div className="task-project-assignment-copy"><span><FolderKanban size={18} /></span><div><strong>Project assignment</strong><small>Manually override the project selected during Discord sync.</small></div></div>
           <form onSubmit={saveProjectAssignment}>

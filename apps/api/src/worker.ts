@@ -1,27 +1,24 @@
-import { SyncJobStatus } from "@prisma/client";
+import { SyncJobPhase, SyncJobStatus } from "@prisma/client";
 import { prisma } from "./lib/prisma.js";
 import { importDeveloperThreadTasks } from "./integrations/discord/task-importer.js";
-import { CLICKUP_REFRESH_INTERVAL_MS, syncClickUpTickets } from "./integrations/clickup/sync.js";
+import { CLICKUP_REFRESH_INTERVAL_MS, syncClickUpTickets, type ClickUpSyncOptions } from "./integrations/clickup/sync.js";
 
 let stopping = false;
 let processing = false;
-let clickUpProcessing = false;
+let clickUpQueue: Promise<void> = Promise.resolve();
 
-async function processClickUpQueue() {
-  if (clickUpProcessing || stopping) return;
-  clickUpProcessing = true;
-  console.log("[clickup] Sync cycle started.");
-  try {
-    const result = await syncClickUpTickets();
+function processClickUpQueue(options: ClickUpSyncOptions = {}) {
+  const cycle = clickUpQueue.then(async () => {
+    console.log(`[clickup] ${options.force ? "Forced " : ""}sync cycle started${options.developerId ? ` for developer ${options.developerId}` : ""}.`);
+    const result = await syncClickUpTickets(options);
     const rateLimitMessage = result.rateLimitedUntil
       ? ` Rate limited; remaining tickets will resume after ${result.rateLimitedUntil.toISOString()}.`
       : "";
     console.log(`[clickup] Sync cycle completed: ${result.syncedTickets} synced, ${result.failedTickets} failed, ${result.linkedTasks} tasks linked.${rateLimitMessage}`);
-  } catch (error) {
-    console.error("[clickup] Sync cycle failed:", error);
-  } finally {
-    clickUpProcessing = false;
-  }
+    return result;
+  });
+  clickUpQueue = cycle.then(() => undefined, () => undefined);
+  return cycle;
 }
 
 async function claimNextJob() {
@@ -33,7 +30,16 @@ async function claimNextJob() {
 
   const claimed = await prisma.discordSyncJob.updateMany({
     where: { id: candidate.id, status: SyncJobStatus.PENDING },
-    data: { status: SyncJobStatus.RUNNING, startedAt: new Date(), error: null }
+    data: {
+      status: SyncJobStatus.RUNNING,
+      phase: SyncJobPhase.DISCORD,
+      startedAt: new Date(),
+      error: null,
+      clickUpLinkedTasks: 0,
+      clickUpProcessedTickets: 0,
+      clickUpSyncedTickets: 0,
+      clickUpFailedTickets: 0
+    }
   });
   return claimed.count === 1 ? candidate : null;
 }
@@ -51,9 +57,20 @@ async function processQueue() {
         });
         await prisma.discordSyncJob.update({
           where: { id: job.id },
-          data: { ...result, status: SyncJobStatus.COMPLETED, completedAt: new Date() }
+          data: { ...result, phase: SyncJobPhase.CLICKUP }
         });
-        await processClickUpQueue();
+        const clickUpResult = await processClickUpQueue({ developerId: job.developerId, force: true });
+        await prisma.discordSyncJob.update({
+          where: { id: job.id },
+          data: {
+            status: SyncJobStatus.COMPLETED,
+            clickUpLinkedTasks: clickUpResult.linkedTasks,
+            clickUpProcessedTickets: clickUpResult.processedTickets,
+            clickUpSyncedTickets: clickUpResult.syncedTickets,
+            clickUpFailedTickets: clickUpResult.failedTickets,
+            completedAt: new Date()
+          }
+        });
       } catch (error) {
         console.error(`Discord task sync ${job.id} failed:`, error);
         await prisma.discordSyncJob.update({
@@ -73,14 +90,14 @@ async function processQueue() {
 
 await prisma.discordSyncJob.updateMany({
   where: { status: SyncJobStatus.RUNNING },
-  data: { status: SyncJobStatus.PENDING, startedAt: null }
+  data: { status: SyncJobStatus.PENDING, phase: SyncJobPhase.DISCORD, startedAt: null }
 });
 
 console.log("Discord task worker is ready.");
 const timer = setInterval(() => void processQueue(), 1_500);
-const clickUpTimer = setInterval(() => void processClickUpQueue(), CLICKUP_REFRESH_INTERVAL_MS);
+const clickUpTimer = setInterval(() => void processClickUpQueue().catch((error) => console.error("[clickup] Scheduled sync cycle failed:", error)), CLICKUP_REFRESH_INTERVAL_MS);
 void processQueue();
-void processClickUpQueue();
+void processClickUpQueue().catch((error) => console.error("[clickup] Startup sync cycle failed:", error));
 
 async function shutdown() {
   stopping = true;

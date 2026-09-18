@@ -64,6 +64,7 @@ tasksRouter.get("/:id", async (request, response, next) => {
       select: {
         id: true,
         description: true,
+        details: true,
         durationMinutes: true,
         taskUrl: true,
         projectName: true,

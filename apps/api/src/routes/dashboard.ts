@@ -1,6 +1,6 @@
 import { ReportPeriod, UserRole } from "@prisma/client";
 import { Router } from "express";
-import { buildDashboardSummary, sevenDayWindow, yesterdayInTimeZone } from "../lib/dashboard-summary.js";
+import { buildDashboardSummary, previousWorkingDayInTimeZone, sevenDayWindow } from "../lib/dashboard-summary.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -9,7 +9,7 @@ dashboardRouter.use(authenticate);
 
 dashboardRouter.get("/summary", async (_request, response, next) => {
   try {
-    const yesterday = yesterdayInTimeZone();
+    const yesterday = previousWorkingDayInTimeZone();
     const firstDate = new Date(`${sevenDayWindow(yesterday)[0]}T00:00:00.000Z`);
     const developers = await prisma.developer.findMany({
       where: { user: { role: UserRole.DEVELOPER, isActive: true } },

@@ -61,6 +61,29 @@ export type ProjectInput = {
   aliases: string[];
 };
 
+export type ProjectDetail = Project & {
+  stats: {
+    taskCount: number;
+    totalMinutes: number;
+    timedTaskCount: number;
+    developerCount: number;
+  };
+  tasks: Array<{
+    id: string;
+    description: string;
+    details: string | null;
+    durationMinutes: number | null;
+    taskUrl: string | null;
+    statusReport: {
+      reportDate: string;
+      developer: {
+        id: string;
+        user: { firstName: string; lastName: string };
+      };
+    };
+  }>;
+};
+
 export type PerformanceReport = {
   filters: {
     developerId: string | null;
@@ -159,9 +182,14 @@ export type DashboardSummary = {
 export type DiscordSyncJob = {
   id: string;
   status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  phase: "DISCORD" | "CLICKUP";
   processedMessages: number;
   importedReports: number;
   importedTasks: number;
+  clickUpLinkedTasks: number;
+  clickUpProcessedTickets: number;
+  clickUpSyncedTickets: number;
+  clickUpFailedTickets: number;
   error: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -184,6 +212,7 @@ export type DeveloperDetail = Omit<Developer, "_count"> & {
     tasks: Array<{
       id: string;
       description: string;
+      details: string | null;
       durationMinutes: number | null;
       taskUrl: string | null;
       clickUpUrl: string | null;
@@ -199,6 +228,7 @@ export type DeveloperDetail = Omit<Developer, "_count"> & {
 export type TaskDetail = {
   id: string;
   description: string;
+  details: string | null;
   durationMinutes: number | null;
   taskUrl: string | null;
   projectName: string | null;

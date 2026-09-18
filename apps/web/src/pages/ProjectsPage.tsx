@@ -1,4 +1,4 @@
-import { AlertCircle, FolderKanban, ListTodo, Pencil, Plus, Search, Tags } from "lucide-react";
+import { AlertCircle, ChevronRight, FolderKanban, ListTodo, Pencil, Plus, Search, Tags } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -58,7 +58,10 @@ export function ProjectsPage() {
                 </div>
                 <span className="project-row-stat"><Tags size={14} /><span><strong>{project.aliases.length}</strong><small>aliases</small></span></span>
                 <span className="project-row-stat"><ListTodo size={14} /><span><strong>{project._count.tasks}</strong><small>tasks</small></span></span>
-                {user?.role === "ADMIN" ? <Link className="project-edit-link" to={`/projects/${project.id}/edit`}><Pencil size={15} />Edit</Link> : <span />}
+                <span className="project-row-actions">
+                  <Link className="project-view-link" to={`/projects/${project.id}`}>View<ChevronRight size={14} /></Link>
+                  {user?.role === "ADMIN" && <Link className="project-edit-link icon-only" to={`/projects/${project.id}/edit`} aria-label={`Edit ${project.name}`} title={`Edit ${project.name}`}><Pencil size={14} /></Link>}
+                </span>
               </article>
             ))}
           </div>

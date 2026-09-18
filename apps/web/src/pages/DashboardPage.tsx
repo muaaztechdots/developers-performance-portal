@@ -110,6 +110,7 @@ export function DashboardPage() {
   if (!summary) return <div className="dashboard-loading empty-state"><AlertCircle size={28} /><h3>Dashboard unavailable</h3><p>{error}</p><button className="secondary-button compact" onClick={() => void loadSummary(true)}><RefreshCw size={16} />Try again</button></div>;
 
   const yesterdayLabel = dateLabel(summary.yesterdayDate, { weekday: "long", month: "long", day: "numeric" });
+  const statusDayName = dateLabel(summary.yesterdayDate, { weekday: "long" });
   const cards = [
     {
       label: "Active team",
@@ -119,7 +120,7 @@ export function DashboardPage() {
       note: `${summary.team.engineering} Engineering · ${summary.team.qa} QA`
     },
     {
-      label: "Yesterday's updates",
+      label: `${statusDayName}'s updates`,
       value: summary.yesterdayIsWeekend ? "Weekend" : `${summary.yesterday.submitted}/${summary.team.total}`,
       icon: CheckCircle2,
       tone: "green",
@@ -137,14 +138,14 @@ export function DashboardPage() {
       value: durationLabel(summary.yesterday.reportedMinutes),
       icon: Clock3,
       tone: "violet",
-      note: `${summary.yesterday.taskCount} task${summary.yesterday.taskCount === 1 ? "" : "s"} reported yesterday`
+      note: `${summary.yesterday.taskCount} task${summary.yesterday.taskCount === 1 ? "" : "s"} reported for ${statusDayName}`
     }
   ];
 
   return (
     <div className="dashboard-page page-stack">
       <section className="page-heading">
-        <div><p className="welcome-line">Good to see you, {user?.firstName}</p><p>Team status coverage, reported effort, and delivery activity through yesterday.</p></div>
+        <div><p className="welcome-line">Good to see you, {user?.firstName}</p><p>Team status coverage, reported effort, and delivery activity through the previous working day.</p></div>
         <div className="page-heading-actions"><span className="date-chip"><CalendarDays size={17} />{today}</span>{user?.role === "ADMIN" && <button className="secondary-button compact" disabled={syncingStatuses} title="Sync Discord statuses and refresh dashboard data" onClick={() => void refreshStatusesInBackground(true)}><RefreshCw className={syncingStatuses ? "is-spinning" : ""} size={16} />{syncingStatuses ? "Syncing..." : "Sync Discord"}</button>}</div>
       </section>
 
@@ -185,7 +186,7 @@ export function DashboardPage() {
       </section>
 
       <section className="panel yesterday-team-panel">
-        <div className="panel-heading"><div><h2>Yesterday&apos;s team status</h2><p>{yesterdayLabel} · Missing updates are shown first</p></div><Link to="/developers">View developers <ChevronRight size={15} /></Link></div>
+        <div className="panel-heading"><div><h2>{statusDayName}&apos;s team status</h2><p>{yesterdayLabel} · Missing updates are shown first</p></div><Link to="/developers">View developers <ChevronRight size={15} /></Link></div>
         {summary.developerStatuses.length ? <div className="dashboard-developer-list">
           {summary.developerStatuses.map((developer) => <Link className="dashboard-developer-row" to={`/developers/${developer.id}`} key={developer.id}>
             <span className="avatar">{developer.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</span>

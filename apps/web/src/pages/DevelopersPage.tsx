@@ -8,6 +8,10 @@ import type { Developer, DeveloperStatusSyncJob } from "../types";
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+function statusDateLabel(value: string, options: Intl.DateTimeFormatOptions) {
+  return new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
 export function DevelopersPage() {
   const { user } = useAuth();
   const [developers, setDevelopers] = useState<Developer[]>([]);
@@ -143,11 +147,15 @@ export function DevelopersPage() {
   const failedJobs = syncJobs.filter((job) => job.status === "FAILED").length;
   const currentJob = syncJobs.find((job) => job.status === "RUNNING") ?? syncJobs.find((job) => job.status === "PENDING");
   const progressPercent = syncJobs.length ? Math.round((finishedJobs / syncJobs.length) * 100) : 0;
+  const statusDayName = yesterdayDate ? statusDateLabel(yesterdayDate, { weekday: "long" }) : "Previous workday";
+  const formattedStatusDate = yesterdayDate
+    ? statusDateLabel(yesterdayDate, { weekday: "long", month: "long", day: "numeric" })
+    : "";
 
   return (
     <div className="developers-page page-stack">
       <section className="page-heading">
-        <div><p className="welcome-line">Your engineering team</p><p>Yesterday&apos;s status coverage and Discord activity sync.</p></div>
+        <div><p className="welcome-line">Your engineering team</p><p>Previous working-day status coverage and Discord activity sync.</p></div>
         {user?.role === "ADMIN" && <button className="primary-button compact" disabled={syncing} onClick={() => void syncAllStatuses()}><RefreshCw className={syncing ? "is-spinning" : ""} size={18} />{syncing ? "Syncing statuses…" : "Sync all statuses"}</button>}
       </section>
 
@@ -167,7 +175,7 @@ export function DevelopersPage() {
       {syncNotice && <div className={`sync-notice ${syncNotice.type}`} role="status">{syncNotice.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}<span>{syncNotice.message}</span><button type="button" aria-label="Dismiss sync message" onClick={() => setSyncNotice(null)}>×</button></div>}
 
       <section className="panel directory-panel">
-        <div className="directory-tools"><div><h2>All developers</h2><p>{developers.length} team member{developers.length === 1 ? "" : "s"}{yesterdayDate ? ` · Status date ${yesterdayDate}` : ""}</p></div><label className="search-box directory-search"><Search size={17} /><input placeholder="Search developers" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
+        <div className="directory-tools"><div><h2>All developers</h2><p>{developers.length} team member{developers.length === 1 ? "" : "s"}{formattedStatusDate ? ` · Status date ${formattedStatusDate}` : ""}</p></div><label className="search-box directory-search"><Search size={17} /><input placeholder="Search developers" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
         {loading ? (
           <div className="empty-state"><div className="empty-icon"><Users size={24} /></div><h3>Loading your team…</h3></div>
         ) : filtered.length === 0 ? (
@@ -180,7 +188,7 @@ export function DevelopersPage() {
               <div className="developer-identity"><Link className="developer-name-link" to={`/developers/${developer.id}/edit`} title="Edit developer information"><strong>{developer.user.firstName} {developer.user.lastName}</strong></Link><small>{developer.user.email}</small></div>
               <span>{developer.jobTitle ?? "Developer"}</span>
               <span>{developer._count.statusReports} updates</span>
-              <span className={`yesterday-status ${developer.yesterdayStatusSubmitted ? "submitted" : "missing"}`}>{developer.yesterdayStatusSubmitted ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{developer.yesterdayStatusSubmitted ? "Yesterday received" : "Yesterday missing"}</span>
+              <span className={`yesterday-status ${developer.yesterdayStatusSubmitted ? "submitted" : "missing"}`}>{developer.yesterdayStatusSubmitted ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}{developer.yesterdayStatusSubmitted ? `${statusDayName} received` : `${statusDayName} missing`}</span>
             </div>)}
           </div>
         )}

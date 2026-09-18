@@ -49,7 +49,10 @@ export function DeveloperTasksPage() {
       }
       if (job.status === "FAILED") throw new Error(job.error ?? "Discord task sync failed.");
       await loadDeveloper();
-      setNotice({ type: "success", message: `Imported ${job.importedTasks} Today task${job.importedTasks === 1 ? "" : "s"} from ${job.processedMessages} Discord messages.` });
+      const clickUpSummary = job.clickUpProcessedTickets
+        ? ` ClickUp refreshed ${job.clickUpSyncedTickets} of ${job.clickUpProcessedTickets} ticket${job.clickUpProcessedTickets === 1 ? "" : "s"}${job.clickUpFailedTickets ? `; ${job.clickUpFailedTickets} failed` : ""}.`
+        : " No ClickUp tickets were found for this developer.";
+      setNotice({ type: "success", message: `Imported ${job.importedTasks} Today task${job.importedTasks === 1 ? "" : "s"} from ${job.processedMessages} Discord messages.${clickUpSummary}` });
     } catch (error) {
       setNotice({ type: "error", message: error instanceof Error ? error.message : "Discord task sync failed." });
     }
@@ -75,6 +78,9 @@ export function DeveloperTasksPage() {
     ? Math.round((missingPullRequests / clickUpTicketStates.size) * 100)
     : null;
   const syncing = syncJob?.status === "PENDING" || syncJob?.status === "RUNNING";
+  const syncButtonLabel = syncing
+    ? syncJob?.phase === "CLICKUP" ? "Syncing ClickUp" : "Syncing Discord"
+    : "Sync Tasks";
 
   return (
     <div className="developer-detail-page page-stack">
@@ -84,7 +90,7 @@ export function DeveloperTasksPage() {
           <span className="avatar profile-avatar">{developer.user.firstName[0]}{developer.user.lastName[0]}</span>
           <div><p className="welcome-line">{developer.user.firstName} {developer.user.lastName}</p><p>{developer.jobTitle ?? "Developer"} · {developer.department ?? "Engineering"}</p></div>
         </div>
-        {user?.role === "ADMIN" && <button className="primary-button compact" disabled={syncing || !developer.discordThreadId} title={developer.discordThreadId ? "Import Today tasks from this developer's Discord thread" : "Sync developers first to link a Discord thread"} onClick={() => void syncTasks()}><RefreshCw className={syncing ? "is-spinning" : ""} size={18} />{syncing ? "Syncing" : "Sync Tasks"}</button>}
+        {user?.role === "ADMIN" && <button className="primary-button compact" disabled={syncing || !developer.discordThreadId} title={developer.discordThreadId ? "Import Discord tasks, then refresh this developer's ClickUp tickets" : "Sync developers first to link a Discord thread"} onClick={() => void syncTasks()}><RefreshCw className={syncing ? "is-spinning" : ""} size={18} />{syncButtonLabel}</button>}
       </section>
 
       {notice && <div className={`sync-notice ${notice.type}`} role="status">{notice.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}<span>{notice.message}</span><button onClick={() => setNotice(null)} aria-label="Dismiss">×</button></div>}
