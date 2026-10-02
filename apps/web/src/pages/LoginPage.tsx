@@ -9,6 +9,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -20,7 +21,7 @@ export function LoginPage() {
     setError("");
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(email, password, keepSignedIn);
       navigate("/dashboard", { replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to sign in.");
@@ -59,14 +60,14 @@ export function LoginPage() {
           <div className="mobile-brand"><Brand /></div>
           <span className="login-kicker">Welcome back</span>
           <h2>Sign in to your workspace</h2>
-          <p className="login-intro">Enter your details to continue to DevPulse.</p>
+          <p className="login-intro">Enter your details to continue to Dev Portal.</p>
           <form onSubmit={onSubmit}>
             <label className="field-label" htmlFor="email">Email address</label>
             <div className="input-wrap"><Mail size={18} /><input id="email" type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
             <div className="password-row"><label className="field-label" htmlFor="password">Password</label><button type="button" className="text-button">Forgot password?</button></div>
             <div className="input-wrap"><LockKeyhole size={18} /><input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /><button type="button" className="password-toggle" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
             {error && <div className="form-error" role="alert">{error}</div>}
-            <label className="remember"><input type="checkbox" /><span>Keep me signed in</span></label>
+            <label className="remember"><input type="checkbox" checked={keepSignedIn} onChange={(event) => setKeepSignedIn(event.target.checked)} /><span>Keep me signed in</span></label>
             <button className="primary-button" type="submit" disabled={submitting}><span>{submitting ? "Signing in…" : "Sign in"}</span>{!submitting && <ArrowRight size={19} />}</button>
           </form>
           <div className="secure-note"><ShieldCheck size={17} /><span>Your session is encrypted and secured.</span></div>

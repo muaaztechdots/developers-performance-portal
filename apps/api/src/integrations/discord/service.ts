@@ -36,6 +36,12 @@ function splitName(threadName: string) {
   return { firstName: parts.shift() || "Discord", lastName: parts.join(" ") };
 }
 
+export function developerNameMatchesThread(threadName: string, firstName: string, lastName: string) {
+  const developerName = `${firstName} ${lastName}`.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  const normalizedThreadName = threadName.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  return developerName === normalizedThreadName;
+}
+
 function placeholderEmail(threadName: string, threadId: string) {
   const slug = threadName.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "") || "developer";
   return `${slug}.${threadId}@discord.local`;
@@ -49,13 +55,12 @@ async function resolveDeveloper(thread: AnyThreadChannel) {
   if (byThread?.user.role === UserRole.DEVELOPER) return { developer: byThread, outcome: "unchanged" as const };
   if (byThread) throw new Error("This Discord thread is linked to an administrator account.");
 
-  const normalizedThreadName = thread.name.trim().toLocaleLowerCase();
   const developers = await prisma.developer.findMany({
     where: { user: { role: UserRole.DEVELOPER } },
     include: { user: true }
   });
   const byName = developers.find(({ user }) =>
-    `${user.firstName} ${user.lastName}`.trim().toLocaleLowerCase() === normalizedThreadName
+    developerNameMatchesThread(thread.name, user.firstName, user.lastName)
   );
   const specialty = DeveloperSpecialty.ENGINEERING;
 
@@ -141,6 +146,59 @@ export async function syncDiscordDevelopers(): Promise<DeveloperSyncResult> {
   for (const thread of threads) {
     try {
       const { outcome } = await resolveDeveloper(thread);
+      if (outcome === "created") result.developersCreated += 1;
+      if (outcome === "linked") result.developersLinked += 1;
+      if (outcome === "unchanged") result.developersUnchanged += 1;
+    } catch (error) {
+      result.errors.push(`${thread.name}: ${error instanceof Error ? error.message : "Unknown sync error"}`);
+    }
+  }
+
+  lastSyncAt = new Date();
+  lastSyncResult = result;
+  return result;
+}
+
+export async function syncDiscordDeveloper(developerId: string): Promise<DeveloperSyncResult> {
+  if (!discordIsConfigured()) throw new Error("Discord integration is not configured.");
+  if (!client || !ready) throw new Error("Discord bot is not connected yet.");
+
+  const developer = await prisma.developer.findFirst({
+    where: { id: developerId, user: { role: UserRole.DEVELOPER } },
+    include: { user: { select: { firstName: true, lastName: true } } }
+  });
+  if (!developer) throw new Error("Developer not found.");
+
+  const result: DeveloperSyncResult = {
+    threadsScanned: 0,
+    developersCreated: 0,
+    developersLinked: 0,
+    developersUnchanged: 0,
+    errors: []
+  };
+  const { threads, warnings } = await fetchStatusThreads();
+  result.errors.push(...warnings);
+  result.threadsScanned = threads.length;
+
+  const thread = developer.discordThreadId
+    ? threads.find((candidate) => candidate.id === developer.discordThreadId)
+    : threads.find((candidate) => developerNameMatchesThread(
+        candidate.name,
+        developer.user.firstName,
+        developer.user.lastName
+      ));
+
+  if (!thread) {
+    if (!developer.discordThreadId) {
+      const name = `${developer.user.firstName} ${developer.user.lastName}`.trim();
+      result.errors.push(`${name}: No matching Discord thread was found.`);
+    }
+  } else {
+    try {
+      const { developer: resolvedDeveloper, outcome } = await resolveDeveloper(thread);
+      if (resolvedDeveloper.id !== developerId) {
+        throw new Error("The matching Discord thread is already linked to another developer.");
+      }
       if (outcome === "created") result.developersCreated += 1;
       if (outcome === "linked") result.developersLinked += 1;
       if (outcome === "unchanged") result.developersUnchanged += 1;

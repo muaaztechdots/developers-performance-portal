@@ -93,7 +93,7 @@ export function DeveloperTasksPage() {
           <span className="avatar profile-avatar">{developer.user.firstName[0]}{developer.user.lastName[0]}</span>
           <div><p className="welcome-line">{developer.user.firstName} {developer.user.lastName}</p><p>{developer.jobTitle ?? "Developer"} · {developer.department ?? "Engineering"}</p></div>
         </div>
-        {user?.role === "ADMIN" && <button className="primary-button compact" disabled={syncing || !developer.discordThreadId} title={developer.discordThreadId ? "Force sync Discord tasks, ClickUp tickets, and GitHub pull request changes" : "Sync developers first to link a Discord thread"} onClick={() => void syncTasks()}><RefreshCw className={syncing ? "is-spinning" : ""} size={18} />{syncButtonLabel}</button>}
+        {user?.role === "ADMIN" && <button className="primary-button compact" disabled={syncing} title="Discover this developer's Discord thread, then force sync Discord tasks, ClickUp tickets, and GitHub pull request changes" onClick={() => void syncTasks()}><RefreshCw className={syncing ? "is-spinning" : ""} size={18} />{syncButtonLabel}</button>}
       </section>
 
       {notice && <div className={`sync-notice ${notice.type}`} role="status">{notice.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}<span>{notice.message}</span><button onClick={() => setNotice(null)} aria-label="Dismiss">×</button></div>}

@@ -64,7 +64,7 @@ export function AppShell() {
         <header className="topbar">
           <div className="topbar-title">
             <button className="icon-button menu-button" aria-label="Open menu" onClick={() => setMobileOpen(true)}><Menu size={21} /></button>
-            <div><span className="eyebrow">DevPulse</span><h1>{currentLabel}</h1></div>
+            <div><span className="eyebrow">Dev Portal</span><h1>{currentLabel}</h1></div>
           </div>
           <div className="topbar-actions">
             <label className="search-box"><Search size={17} /><input aria-label="Search" placeholder="Search" /></label>

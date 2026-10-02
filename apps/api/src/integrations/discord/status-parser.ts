@@ -107,26 +107,36 @@ function cleanDetail(value: string) {
     .trim();
 }
 
-type LogicalLine = { value: string; isBullet: boolean };
+type LogicalLine = { value: string; isBullet: boolean; startsBlock: boolean };
 
 function logicalLines(section: string) {
   const taskMarkdownLink = /(Task\s*:\s*\[[^\]]*\]\(https?:\/\/[^)]+\)\s*(?:\[(?:DONE|WIP|IN PROGRESS|BLOCKED|COMPLETED)\])?)/gi;
   const taskPlainLink = /(Task\s*:\s*https?:\/\/[^\s]+\s*(?:\[(?:DONE|WIP|IN PROGRESS|BLOCKED|COMPLETED)\])?)/gi;
   const projectAction = new RegExp(`\\s+(?=[A-Z][A-Za-z0-9&-]{2,30}\\s+(?:${CAPITALIZED_ACTION_WORDS})\\b)`, "g");
 
-  return section
+  const normalized = section
     .replace(taskMarkdownLink, "\n$1\n")
     .replace(taskPlainLink, "\n$1\n")
     .replace(projectAction, "\n")
     .replace(/\)\s+(?=\[(?:DONE|WIP|IN PROGRESS|BLOCKED|COMPLETED)\])/gi, ") ")
     .replace(/[ \t]{2,}(?=\d+(?:\.\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m)(?![a-z]))/gi, " ")
-    .replace(/[ \t]{2,}/g, "\n")
-    .split(/\r?\n/)
-    .map((line): LogicalLine => ({
+    .replace(/[ \t]{2,}/g, "\n");
+
+  const lines: LogicalLine[] = [];
+  let startsBlock = true;
+  for (const line of normalized.split(/\r?\n/)) {
+    if (!line.trim()) {
+      startsBlock = true;
+      continue;
+    }
+    lines.push({
       value: line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, "").trim(),
-      isBullet: /^\s*(?:[-*]|\d+[.)])\s+/.test(line)
-    }))
-    .filter((line) => Boolean(line.value));
+      isBullet: /^\s*(?:[-*]|\d+[.)])\s+/.test(line),
+      startsBlock
+    });
+    startsBlock = false;
+  }
+  return lines;
 }
 
 function inlineProjectAndTask(value: string) {
@@ -205,7 +215,11 @@ function parseTodaySection(section: string) {
       continue;
     }
 
-    if (!logicalLine.isBullet && projectName && HAS_STATUS_MARKER.test(line)) {
+    if (
+      !logicalLine.isBullet
+      && projectName
+      && (HAS_STATUS_MARKER.test(line) || parseDuration(line) !== null)
+    ) {
       const description = cleanDescription(line);
       if (description) groupedTask = addTask(description, line);
       continue;
@@ -216,6 +230,13 @@ function parseTodaySection(section: string) {
       if (detail) groupedTask.details = groupedTask.details ? `${groupedTask.details}\n${detail}` : detail;
       const detailMinutes = parseDuration(line);
       if (detailMinutes !== null) groupedTask.durationMinutes = (groupedTask.durationMinutes ?? 0) + detailMinutes;
+      if (!groupedTask.taskUrl) groupedTask.taskUrl = extractUrl(line);
+      continue;
+    }
+
+    if (!logicalLine.isBullet && groupedTask && !logicalLine.startsBlock) {
+      const detail = cleanDetail(line);
+      if (detail) groupedTask.details = groupedTask.details ? `${groupedTask.details}\n${detail}` : detail;
       if (!groupedTask.taskUrl) groupedTask.taskUrl = extractUrl(line);
       continue;
     }

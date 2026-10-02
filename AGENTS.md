@@ -32,6 +32,7 @@ These rules are intentional. Do not change them accidentally.
 3. Sync-all jobs process developers one at a time through the worker queue.
 4. Sync-all and scheduled integration refreshes use a 24-hour freshness check.
 5. Clicking Sync Tasks for one developer is a forced sync. It refreshes that developer's ClickUp and GitHub data even if it was attempted less than 24 hours ago.
+   Before queueing the job, it discovers or refreshes that developer's Discord thread mapping by exact normalized developer/thread name.
 6. If a single-developer sync finds an existing pending/running job, it upgrades that job to `forceRefresh=true`.
 7. External API data is persisted. Task pages read PostgreSQL; they do not wait on ClickUp or GitHub.
 8. Discord imports only tasks under `Today:`. Yesterday content is not stored as imported tasks.
@@ -273,6 +274,7 @@ The intended stored tasks are:
 - Treats a short non-bullet line as a project heading when the following structure indicates a task.
 - Treats a non-bullet task heading after a project as the `StatusTask.description`.
 - Treats following bullet points as `StatusTask.details`, separated by newline.
+- In bot-style blocks, also treats plain non-bullet lines after a timed task heading as details until the next blank-separated project/task block.
 - Adds durations from detail bullets to the parent task's `durationMinutes`.
 - Uses the first available task/detail URL as `taskUrl`.
 - Only the `Today:` section is imported.
@@ -413,7 +415,7 @@ Public repositories can be read without a token. Private repositories need a ser
 ## 12. Authentication and authorization
 
 - Login verifies the bcrypt password hash.
-- The API signs an eight-hour JWT.
+- The API signs an eight-hour JWT by default. Selecting Keep me signed in issues a matching 30-day JWT and persistent cookie.
 - Browser sessions use the HTTP-only `developer_performance_session` cookie.
 - Cookies are `SameSite=Lax` and secure in production.
 - Middleware also accepts `Authorization: Bearer <token>`.
@@ -444,7 +446,7 @@ All routes are under `/api`.
 | GET | `/developers/:id` | Developer details, reports, tasks, latest job |
 | PATCH | `/developers/:id` | Update developer; admin only |
 | POST | `/developers` | Create developer; admin only |
-| POST | `/developers/:id/sync-tasks` | Queue/upgrade a forced single-developer job |
+| POST | `/developers/:id/sync-tasks` | Refresh the developer's Discord thread mapping, then queue/upgrade a forced job |
 | GET | `/developers/:id/sync-jobs/:jobId` | Poll one job |
 
 ### Integrations
@@ -576,7 +578,7 @@ npm run build
 
 Latest verified baseline when this document was created:
 
-- 71 API tests passed.
+- 76 API tests passed.
 - 8 web tests passed.
 - Type checking passed for both workspaces.
 - Production builds passed for both workspaces.

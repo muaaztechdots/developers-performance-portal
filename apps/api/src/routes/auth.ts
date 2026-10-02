@@ -2,14 +2,15 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { AUTH_COOKIE, createSessionToken, sessionCookieOptions } from "../lib/auth.js";
+import { AUTH_COOKIE, createSessionCookieOptions, createSessionToken, sessionCookieOptions } from "../lib/auth.js";
 import { authenticate } from "../middleware/authenticate.js";
 
 export const authRouter = Router();
 
 const loginSchema = z.object({
   email: z.email().transform((value) => value.trim().toLowerCase()),
-  password: z.string().min(8).max(128)
+  password: z.string().min(8).max(128),
+  keepSignedIn: z.boolean().optional().default(false)
 });
 
 const publicUser = {
@@ -31,8 +32,11 @@ authRouter.post("/login", async (request, response, next) => {
       return;
     }
 
-    const token = createSessionToken({ sub: user.id, email: user.email, role: user.role });
-    response.cookie(AUTH_COOKIE, token, sessionCookieOptions);
+    const token = createSessionToken(
+      { sub: user.id, email: user.email, role: user.role },
+      input.keepSignedIn
+    );
+    response.cookie(AUTH_COOKIE, token, createSessionCookieOptions(input.keepSignedIn));
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     const signedInUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: publicUser });
     response.json({ user: signedInUser });

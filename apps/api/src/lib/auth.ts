@@ -9,8 +9,11 @@ export type SessionPayload = {
   role: "ADMIN" | "DEVELOPER";
 };
 
-export function createSessionToken(payload: SessionPayload) {
-  return jwt.sign(payload, config.JWT_SECRET, { expiresIn: "8h" });
+export const DEFAULT_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+export const REMEMBERED_SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function createSessionToken(payload: SessionPayload, keepSignedIn = false) {
+  return jwt.sign(payload, config.JWT_SECRET, { expiresIn: keepSignedIn ? "30d" : "8h" });
 }
 
 export function verifySessionToken(token: string) {
@@ -21,6 +24,13 @@ export const sessionCookieOptions = {
   httpOnly: true,
   sameSite: "lax" as const,
   secure: config.NODE_ENV === "production",
-  maxAge: 8 * 60 * 60 * 1000,
+  maxAge: DEFAULT_SESSION_MAX_AGE_MS,
   path: "/"
 };
+
+export function createSessionCookieOptions(keepSignedIn = false) {
+  return {
+    ...sessionCookieOptions,
+    maxAge: keepSignedIn ? REMEMBERED_SESSION_MAX_AGE_MS : DEFAULT_SESSION_MAX_AGE_MS
+  };
+}

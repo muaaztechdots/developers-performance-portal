@@ -5,7 +5,7 @@ import type { User } from "../types";
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, keepSignedIn: boolean) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -22,8 +22,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(() => ({
     user,
     loading,
-    login: async (email, password) => {
-      const result = await api.login(email, password);
+    login: async (email, password, keepSignedIn) => {
+      const result = await api.login(email, password, keepSignedIn);
       setUser(result.user);
     },
     logout: async () => {

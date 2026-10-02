@@ -26,10 +26,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  login: (email: string, password: string) =>
+  login: (email: string, password: string, keepSignedIn: boolean) =>
     request<{ user: User }>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password, keepSignedIn })
     }),
   me: () => request<{ user: User }>("/auth/me"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
@@ -60,7 +60,7 @@ export const api = {
     if (filters.to) query.set("to", filters.to);
     return request<{ report: PerformanceReport }>(`/reports?${query.toString()}`);
   },
-  syncDeveloperTasks: (id: string) => request<{ job: DiscordSyncJob }>(`/developers/${id}/sync-tasks`, { method: "POST" }),
+  syncDeveloperTasks: (id: string) => request<{ job: DiscordSyncJob; developerSync: DiscordDeveloperSyncResult }>(`/developers/${id}/sync-tasks`, { method: "POST" }),
   developerSyncJob: (developerId: string, jobId: string) => request<{ job: DiscordSyncJob }>(`/developers/${developerId}/sync-jobs/${jobId}`),
   task: (id: string) => request<{ task: TaskDetail; clickup: ClickUpEnrichment }>(`/tasks/${id}`),
   taskGitHubChanges: (id: string) => request<{ github: GitHubEnrichment }>(`/tasks/${id}/github`),

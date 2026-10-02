@@ -218,6 +218,44 @@ Task: https://app.clickup.com/t/42060460/z8q7hbetcg`);
     ]);
   });
 
+  it("groups plain detail lines under tasks in the bot-generated status format", () => {
+    const result = parseDiscordStatus(`02/10/2026
+
+Today:
+
+HomeliCare
+Task 1 (2h)
+done this
+this
+and this
+
+HomeliCare
+task 2 (3h)
+done this this
+this this`);
+
+    expect(result?.reportDateIso).toBe("2026-10-02");
+    expect(result?.tasks).toHaveLength(2);
+    expect(result?.tasks).toEqual([
+      expect.objectContaining({
+        projectName: "HomeliCare",
+        description: "Task 1",
+        details: "done this\nthis\nand this",
+        durationMinutes: 120,
+        taskUrl: null,
+        sortOrder: 0
+      }),
+      expect.objectContaining({
+        projectName: "HomeliCare",
+        description: "task 2",
+        details: "done this this\nthis this",
+        durationMinutes: 180,
+        taskUrl: null,
+        sortOrder: 1
+      })
+    ]);
+  });
+
   it("ignores leave notices and messages without a dated status", () => {
     expect(parseDiscordStatus(`i was on leave on "7/09/2026"`)).toBeNull();
     expect(parseDiscordStatus("Thanks, I will check it today.")).toBeNull();

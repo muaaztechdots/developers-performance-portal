@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { DeveloperSpecialty, ReportPeriod, SyncJobStatus, UserRole } from "@prisma/client";
 import { parseClickUpTaskId } from "../integrations/clickup/service.js";
+import { syncDiscordDeveloper } from "../integrations/discord/service.js";
 import { findGitHubPullRequestUrl } from "../lib/github-pull-request.js";
 import { previousWorkingDayInTimeZone } from "../lib/dashboard-summary.js";
 import { prisma } from "../lib/prisma.js";
@@ -205,15 +206,21 @@ developersRouter.post("/:id/sync-tasks", async (request, response, next) => {
       return;
     }
     const { id } = z.object({ id: z.uuid() }).parse(request.params);
-    const developer = await prisma.developer.findFirst({
+    const existingDeveloper = await prisma.developer.findFirst({
       where: { id, user: { role: UserRole.DEVELOPER } }
     });
-    if (!developer) {
+    if (!existingDeveloper) {
       response.status(404).json({ message: "Developer not found." });
       return;
     }
+
+    const developerSync = await syncDiscordDeveloper(id);
+    const developer = await prisma.developer.findUniqueOrThrow({ where: { id } });
     if (!developer.discordThreadId) {
-      response.status(409).json({ message: "This developer is not linked to a Discord thread." });
+      response.status(409).json({
+        message: developerSync.errors[0]
+          ?? "This developer could not be linked to a Discord thread. Check that the thread name matches the developer name."
+      });
       return;
     }
 
@@ -224,8 +231,12 @@ developersRouter.post("/:id/sync-tasks", async (request, response, next) => {
     const job = existingJob
       ? await prisma.discordSyncJob.update({ where: { id: existingJob.id }, data: { forceRefresh: true } })
       : await prisma.discordSyncJob.create({ data: { developerId: id, forceRefresh: true } });
-    response.status(existingJob ? 200 : 202).json({ job });
+    response.status(existingJob ? 200 : 202).json({ job, developerSync });
   } catch (error) {
+    if (error instanceof Error && /not configured|not connected/.test(error.message)) {
+      response.status(503).json({ message: error.message });
+      return;
+    }
     next(error);
   }
 });
