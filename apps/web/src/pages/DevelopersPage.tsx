@@ -63,11 +63,13 @@ export function DevelopersPage() {
       await loadDevelopers();
       const failed = jobs.filter((job) => job.status === "FAILED").length;
       const importedTasks = jobs.reduce((total, job) => total + job.importedTasks, 0);
+      const clickUpTickets = jobs.reduce((total, job) => total + job.clickUpSyncedTickets, 0);
+      const githubPullRequests = jobs.reduce((total, job) => total + job.githubSyncedPullRequests, 0);
       setSyncNotice({
         type: failed ? "error" : "success",
         message: failed
-          ? `Status sync finished with ${failed} failed developer${failed === 1 ? "" : "s"}. ${importedTasks} tasks were imported.`
-          : `All ${jobs.length} developer statuses are synced. ${importedTasks} tasks were imported.`
+          ? `Developer sync finished with ${failed} failed developer${failed === 1 ? "" : "s"}. ${importedTasks} tasks, ${clickUpTickets} ClickUp tickets, and ${githubPullRequests} GitHub pull requests were imported.`
+          : `All ${jobs.length} developers are synced. ${importedTasks} tasks, ${clickUpTickets} ClickUp tickets, and ${githubPullRequests} GitHub pull requests were imported.`
       });
     } catch (error) {
       if (mountedRef.current) {
@@ -99,7 +101,7 @@ export function DevelopersPage() {
     } catch (error) {
       if (mountedRef.current) {
         setSyncing(false);
-        setSyncNotice({ type: "error", message: error instanceof Error ? error.message : "Discord status sync failed." });
+        setSyncNotice({ type: "error", message: error instanceof Error ? error.message : "Developer sync failed." });
       }
     }
   }, [loadDevelopers, monitorJobs]);
@@ -146,6 +148,9 @@ export function DevelopersPage() {
   const finishedJobs = syncJobs.filter((job) => job.status === "COMPLETED" || job.status === "FAILED").length;
   const failedJobs = syncJobs.filter((job) => job.status === "FAILED").length;
   const currentJob = syncJobs.find((job) => job.status === "RUNNING") ?? syncJobs.find((job) => job.status === "PENDING");
+  const currentPhase = currentJob?.status === "RUNNING"
+    ? currentJob.phase === "GITHUB" ? "Importing GitHub changes for" : currentJob.phase === "CLICKUP" ? "Importing ClickUp tickets for" : "Importing Discord statuses for"
+    : "Waiting for";
   const progressPercent = syncJobs.length ? Math.round((finishedJobs / syncJobs.length) * 100) : 0;
   const statusDayName = yesterdayDate ? statusDateLabel(yesterdayDate, { weekday: "long" }) : "Previous workday";
   const formattedStatusDate = yesterdayDate
@@ -156,18 +161,18 @@ export function DevelopersPage() {
     <div className="developers-page page-stack">
       <section className="page-heading">
         <div><p className="welcome-line">Your engineering team</p><p>Previous working-day status coverage and Discord activity sync.</p></div>
-        {user?.role === "ADMIN" && <button className="primary-button compact" disabled={syncing} onClick={() => void syncAllStatuses()}><RefreshCw className={syncing ? "is-spinning" : ""} size={18} />{syncing ? "Syncing statuses…" : "Sync all statuses"}</button>}
+        {user?.role === "ADMIN" && <button className="primary-button compact" disabled={syncing} onClick={() => void syncAllStatuses()}><RefreshCw className={syncing ? "is-spinning" : ""} size={18} />{syncing ? "Syncing developers…" : "Sync all developers"}</button>}
       </section>
 
       {syncJobs.length > 0 && <section className="panel status-sync-progress" aria-live="polite">
-        <header><div><span className="sync-progress-icon"><RefreshCw className={syncing ? "is-spinning" : ""} size={18} /></span><div><h2>{syncing ? "Syncing Discord statuses" : "Latest status sync"}</h2><p>{currentJob ? `${currentJob.status === "RUNNING" ? "Reading" : "Waiting for"} ${currentJob.developer.user.firstName} ${currentJob.developer.user.lastName}` : "All queued developers processed"}</p></div></div><strong>{finishedJobs}/{syncJobs.length}</strong></header>
+        <header><div><span className="sync-progress-icon"><RefreshCw className={syncing ? "is-spinning" : ""} size={18} /></span><div><h2>{syncing ? "Syncing developer data" : "Latest developer sync"}</h2><p>{currentJob ? `${currentPhase} ${currentJob.developer.user.firstName} ${currentJob.developer.user.lastName}` : "All queued developers processed"}</p></div></div><strong>{finishedJobs}/{syncJobs.length}</strong></header>
         <div className="sync-progress-track"><span style={{ width: `${progressPercent}%` }} /></div>
         <div className="sync-progress-summary"><span>{progressPercent}% complete</span><span>{currentJob?.processedMessages ?? 0} messages read for current developer</span><span>{failedJobs} failed</span></div>
         <div className="sync-developer-steps">
           {syncJobs.map((job) => <div className={`sync-developer-step ${job.status.toLowerCase()}`} key={job.id} title={job.error ?? undefined}>
             {job.status === "COMPLETED" ? <CheckCircle2 size={15} /> : job.status === "FAILED" ? <AlertCircle size={15} /> : <CircleDashed className={job.status === "RUNNING" ? "is-spinning" : ""} size={15} />}
             <span>{job.developer.user.firstName} {job.developer.user.lastName}</span>
-            <small>{job.status === "RUNNING" ? `${job.processedMessages} messages` : job.status.toLowerCase()}</small>
+            <small>{job.status === "RUNNING" ? job.phase.toLowerCase() : job.status.toLowerCase()}</small>
           </div>)}
         </div>
       </section>}

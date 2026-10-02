@@ -2,6 +2,7 @@ import { Router } from "express";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
 import { clickUpIsConfigured, parseClickUpTaskId } from "../integrations/clickup/service.js";
+import { githubIsConfigured } from "../integrations/github/service.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 
@@ -51,6 +52,113 @@ tasksRouter.patch("/:id/project", async (request, response, next) => {
       }
     });
     response.json({ task: updatedTask });
+  } catch (error) {
+    next(error);
+  }
+});
+
+tasksRouter.get("/:id/github", async (request, response, next) => {
+  try {
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const task = await prisma.statusTask.findFirst({
+      where: { id, statusReport: { developer: { user: { role: UserRole.DEVELOPER } } } },
+      select: {
+        statusReport: { select: { developer: { select: { userId: true } } } },
+        githubPullRequest: {
+          select: {
+            url: true,
+            title: true,
+            state: true,
+            draft: true,
+            merged: true,
+            author: true,
+            authorAvatar: true,
+            sourceBranch: true,
+            targetBranch: true,
+            additions: true,
+            deletions: true,
+            changedFiles: true,
+            filesTruncated: true,
+            lastSyncedAt: true,
+            syncError: true,
+            syncErrorKind: true,
+            number: true,
+            files: {
+              orderBy: { sortOrder: "asc" },
+              select: {
+                filename: true,
+                status: true,
+                additions: true,
+                deletions: true,
+                changes: true,
+                patch: true,
+                previousFilename: true,
+                blobUrl: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!task) {
+      response.status(404).json({ message: "Task not found." });
+      return;
+    }
+    if (request.session!.role !== UserRole.ADMIN && task.statusReport.developer.userId !== request.session!.sub) {
+      response.status(403).json({ message: "You cannot view this task." });
+      return;
+    }
+
+    const configured = githubIsConfigured();
+    const pullRequest = task.githubPullRequest;
+    if (!pullRequest) {
+      response.json({ github: { state: "NOT_LINKED", configured, pullRequestUrl: null, message: null, pullRequest: null, files: [], filesTruncated: false } });
+      return;
+    }
+
+    if (pullRequest.title && pullRequest.lastSyncedAt) {
+      response.json({
+        github: {
+          state: "AVAILABLE",
+          configured,
+          pullRequestUrl: pullRequest.url,
+          message: null,
+          pullRequest: {
+            url: pullRequest.url,
+            number: pullRequest.number,
+            title: pullRequest.title,
+            state: pullRequest.state ?? "unknown",
+            draft: pullRequest.draft,
+            merged: pullRequest.merged,
+            author: pullRequest.author ?? "Unknown author",
+            authorAvatar: pullRequest.authorAvatar,
+            sourceBranch: pullRequest.sourceBranch ?? "unknown",
+            targetBranch: pullRequest.targetBranch ?? "unknown",
+            additions: pullRequest.additions,
+            deletions: pullRequest.deletions,
+            changedFiles: pullRequest.changedFiles
+          },
+          files: pullRequest.files,
+          filesTruncated: pullRequest.filesTruncated
+        }
+      });
+      return;
+    }
+
+    const knownErrorStates = ["AUTH_REQUIRED", "RATE_LIMITED", "NOT_FOUND", "UNAVAILABLE"] as const;
+    const errorState = knownErrorStates.find((state) => state === pullRequest.syncErrorKind);
+    response.json({
+      github: {
+        state: errorState ?? "PENDING",
+        configured,
+        pullRequestUrl: pullRequest.url,
+        message: pullRequest.syncError,
+        pullRequest: null,
+        files: [],
+        filesTruncated: false
+      }
+    });
   } catch (error) {
     next(error);
   }

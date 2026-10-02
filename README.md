@@ -64,13 +64,13 @@ The Reports page summarizes the persisted `Today` tasks for either one calendar 
 - `GET /api/reports?month=YYYY-MM&developerId=UUID` - monthly report
 - `GET /api/reports?date=YYYY-MM-DD&developerId=UUID` - daily report
 
-## Discord daily-status ingestion
+## Discord daily-status bot and ingestion
 
 The API reads only the configured `daily-status` channel. Each thread is treated as one developer. **Sync Discord** on the Developers page imports thread names as engineering developers. Opening a developer and clicking **Sync Tasks** queues that developer's complete thread history for a separate worker, so a long import does not block API requests.
 
 1. Create an application and bot in the [Discord Developer Portal](https://discord.com/developers/applications).
 2. On the bot settings page, enable the **Message Content Intent**.
-3. Invite the bot with only **View Channel** and **Read Message History** permissions for the status channel. Do not grant Send Messages, Manage Messages, Manage Threads, or administrator access.
+3. Invite the bot with the `bot` and `applications.commands` scopes. In the status channel, grant **View Channel**, **Read Message History**, **Send Messages**, and **Send Messages in Threads**. Do not grant Manage Messages, Manage Threads, or administrator access.
 4. Enable Developer Mode in Discord, then copy the server ID and the parent `daily-status` channel ID.
 5. Add these values to `apps/api/.env` and restart the API:
 
@@ -80,7 +80,9 @@ The API reads only the configured `daily-status` channel. Each thread is treated
    DISCORD_STATUS_CHANNEL_ID=your-daily-status-channel-id
    ```
 
-The integration is strictly read-only on Discord: it does not subscribe to server-wide message events and only fetches the configured channel or selected developer thread during a sync. It never sends, edits, deletes, reacts to, archives, or otherwise changes anything in Discord. It writes imported data only to this application's PostgreSQL database.
+The bot registers a guild-level `/status` command. A developer runs it inside their linked status thread, selects a project from the dashboard catalog, and completes a form containing the task title, multiline task details, time spent, optional ClickUp ticket URL, and optional GitHub pull-request URL. The private composer provides **Change date**, supports multiple tasks, and includes a **Remove last task** action. **Submit status** creates one canonical daily message; later changes update that same bot-owned message and queue the developer's normal Discord -> ClickUp -> GitHub import. The bot never edits or deletes human messages and has no server-wide message subscription.
+
+Discord modals cannot contain dropdowns or dynamically repeated task rows, so the project selector and multi-task summary are shown in the private composer; the selected project's task fields open in a modal. Project lists longer than 25 entries are paginated automatically.
 
 Only tasks under each message's `Today:` section are imported. Dates come from the message heading; task time and task link remain empty when omitted. A Discord task is linked only when its project heading matches a project already in the project catalog; otherwise its project fields remain empty for later assignment. Imports never create projects or aliases.
 
@@ -117,6 +119,18 @@ Add a personal or OAuth ClickUp API token to either the root `.env` or `apps/api
 CLICKUP_API_TOKEN=your-clickup-api-token
 ```
 
-The background worker discovers ClickUp links, then saves each unique ticket's title, description, and comment history in PostgreSQL. Scheduled refreshes update stale tickets once every 24 hours. A developer's **Sync Tasks** action imports Discord first, then force-refreshes that developer's ClickUp tickets before the job is marked complete. The task detail API only reads the saved data, so opening a task never waits for ClickUp. Only HTTPS links on `app.clickup.com` are recognized; missing links and links from other ticket systems return a normal no-data state. ClickUp access is read-only.
+The background worker discovers ClickUp links, then saves each unique ticket's title, description, and comment history in PostgreSQL. Scheduled and all-developer refreshes update tickets that have not been attempted within 24 hours. A developer's **Sync Tasks** action force-refreshes that developer's tickets regardless of age. The task detail API only reads the saved data, so opening a task never waits for ClickUp. Only HTTPS links on `app.clickup.com` are recognized; missing links and links from other ticket systems return a normal no-data state. ClickUp access is read-only.
 
 - `GET /api/tasks/:id` — local task detail with optional ClickUp enrichment
+
+## GitHub pull request changes
+
+The task detail page has two tabs. **Details** is the default and contains the reported work, project assignment, ClickUp description, and comments. **GitHub changes** reads the pull request summary and per-file patches already imported into PostgreSQL by the background worker. Pull request URLs are discovered from the newest ClickUp comments, with task text as a fallback.
+
+Public repositories work without credentials, subject to GitHub's anonymous API limit. For private repositories and higher limits, set `GITHUB_TOKEN` in the root `.env` or `apps/api/.env` and restart the API. Use a fine-grained personal access token restricted to the required repositories with read-only **Pull requests** permission. The token remains server-side and GitHub access is read-only.
+
+- `GET /api/tasks/:id/github` — saved pull request metadata and code changes for the task
+
+### Backend sync queue
+
+Every job follows `Discord → ClickUp → GitHub → completed`, and the job stays running until all three phases finish. **Sync all developers** queues developers in order and uses the 24-hour freshness window for ClickUp and GitHub. **Sync Tasks** on one developer marks that job as forced, so ClickUp and GitHub are refreshed even when their last attempt was less than 24 hours ago. Scheduled background refreshes also use the 24-hour window.

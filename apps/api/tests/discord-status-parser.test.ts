@@ -165,6 +165,59 @@ Today: CAA:
     ]);
   });
 
+  it("keeps HomeliCare as Ahsan's project and imports only his Today tasks", () => {
+    const result = parseDiscordStatus(`01/10/2026
+
+Yesterday:
+HomeliCare
+
+Block Access of production on all regions accept UK. [Testing on Prod, Staging] —  2h [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbdh1n
+
+Fix offline assessment sync conflicts and refresh online visit contexts[Tested on Prod, Staging] —  3h [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbdu6m
+
+[BE] Investigate disabled conflict/double-booking detection —  1h [WIP]
+Task: https://app.clickup.com/t/42060460/z8q7hbdhpr
+
+Today:
+HomeliCare
+
+[BE] Investigate disabled conflict/double-booking detection —  2h [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbdhpr
+
+[BE] Re-enable conflict/double-booking detection —  1h [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbdhpr
+
+[Backend] Persist per-event location and device evidence on check-in/out — 30min [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbetcf
+
+[Backend] Record location and geofence evidence on assessment submission— 1h [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbetcg`);
+
+    expect(result?.reportDateIso).toBe("2026-10-01");
+    expect(result?.tasks).toHaveLength(4);
+    expect(result?.tasks.map((task) => task.projectName)).toEqual([
+      "HomeliCare",
+      "HomeliCare",
+      "HomeliCare",
+      "HomeliCare"
+    ]);
+    expect(result?.tasks.map((task) => task.description)).toEqual([
+      "[BE] Investigate disabled conflict/double-booking detection",
+      "[BE] Re-enable conflict/double-booking detection",
+      "[Backend] Persist per-event location and device evidence on check-in/out",
+      "[Backend] Record location and geofence evidence on assessment submission"
+    ]);
+    expect(result?.tasks.map((task) => task.durationMinutes)).toEqual([120, 60, 30, 60]);
+    expect(result?.tasks.map((task) => task.taskUrl)).toEqual([
+      "https://app.clickup.com/t/42060460/z8q7hbdhpr",
+      "https://app.clickup.com/t/42060460/z8q7hbdhpr",
+      "https://app.clickup.com/t/42060460/z8q7hbetcf",
+      "https://app.clickup.com/t/42060460/z8q7hbetcg"
+    ]);
+  });
+
   it("ignores leave notices and messages without a dated status", () => {
     expect(parseDiscordStatus(`i was on leave on "7/09/2026"`)).toBeNull();
     expect(parseDiscordStatus("Thanks, I will check it today.")).toBeNull();

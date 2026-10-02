@@ -99,9 +99,9 @@ function cleanDescription(value: string) {
 }
 
 function cleanDetail(value: string) {
-  return replaceMarkdownLinks(value)
-    .replace(STATUS_MARKER, " ")
-    .replace(/https?:\/\/[^\s)>]+/gi, " ")
+  const keepPullRequestUrl = /^\s*(?:[-*]|\d+[.)])?\s*(?:pr|pull request)\s*:/i.test(value);
+  const normalized = replaceMarkdownLinks(value).replace(STATUS_MARKER, " ");
+  return (keepPullRequestUrl ? normalized : normalized.replace(/https?:\/\/[^\s)>]+/gi, " "))
     .replace(/^\s*(?:[-*]|\d+[.)])\s+/, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -119,6 +119,7 @@ function logicalLines(section: string) {
     .replace(taskPlainLink, "\n$1\n")
     .replace(projectAction, "\n")
     .replace(/\)\s+(?=\[(?:DONE|WIP|IN PROGRESS|BLOCKED|COMPLETED)\])/gi, ") ")
+    .replace(/[ \t]{2,}(?=\d+(?:\.\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m)(?![a-z]))/gi, " ")
     .replace(/[ \t]{2,}/g, "\n")
     .split(/\r?\n/)
     .map((line): LogicalLine => ({
@@ -148,7 +149,7 @@ function isProjectHeading(value: string, nextLine?: LogicalLine) {
 
 function isProjectWithTaskHeading(value: string, nextLine?: LogicalLine, followingLine?: LogicalLine) {
   if (!nextLine || nextLine.isBullet) return false;
-  if (!HAS_STATUS_MARKER.test(nextLine.value) && !followingLine?.isBullet) return false;
+  if (!HAS_STATUS_MARKER.test(nextLine.value) && !followingLine?.isBullet && parseDuration(nextLine.value) === null) return false;
 
   const project = value.replace(STATUS_MARKER, "").replace(/:$/, "").trim();
   const task = nextLine.value.replace(STATUS_MARKER, "").trim();

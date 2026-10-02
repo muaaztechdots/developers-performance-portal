@@ -182,7 +182,8 @@ export type DashboardSummary = {
 export type DiscordSyncJob = {
   id: string;
   status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
-  phase: "DISCORD" | "CLICKUP";
+  phase: "DISCORD" | "CLICKUP" | "GITHUB";
+  forceRefresh: boolean;
   processedMessages: number;
   importedReports: number;
   importedTasks: number;
@@ -190,6 +191,10 @@ export type DiscordSyncJob = {
   clickUpProcessedTickets: number;
   clickUpSyncedTickets: number;
   clickUpFailedTickets: number;
+  githubLinkedTasks: number;
+  githubProcessedPullRequests: number;
+  githubSyncedPullRequests: number;
+  githubFailedPullRequests: number;
   error: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -257,4 +262,37 @@ export type ClickUpEnrichment = {
     authorAvatar: string | null;
     createdAt: string | null;
   }>;
+};
+
+export type GitHubEnrichment = {
+  state: "NOT_LINKED" | "PENDING" | "AVAILABLE" | "AUTH_REQUIRED" | "RATE_LIMITED" | "NOT_FOUND" | "UNAVAILABLE";
+  configured: boolean;
+  pullRequestUrl: string | null;
+  message: string | null;
+  pullRequest: null | {
+    url: string;
+    number: number;
+    title: string;
+    state: string;
+    draft: boolean;
+    merged: boolean;
+    author: string;
+    authorAvatar: string | null;
+    sourceBranch: string;
+    targetBranch: string;
+    additions: number;
+    deletions: number;
+    changedFiles: number;
+  };
+  files: Array<{
+    filename: string;
+    status: string;
+    additions: number;
+    deletions: number;
+    changes: number;
+    patch: string | null;
+    previousFilename: string | null;
+    blobUrl: string | null;
+  }>;
+  filesTruncated: boolean;
 };

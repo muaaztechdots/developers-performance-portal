@@ -146,7 +146,7 @@ export function DashboardPage() {
     <div className="dashboard-page page-stack">
       <section className="page-heading">
         <div><p className="welcome-line">Good to see you, {user?.firstName}</p><p>Team status coverage, reported effort, and delivery activity through the previous working day.</p></div>
-        <div className="page-heading-actions"><span className="date-chip"><CalendarDays size={17} />{today}</span>{user?.role === "ADMIN" && <button className="secondary-button compact" disabled={syncingStatuses} title="Sync Discord statuses and refresh dashboard data" onClick={() => void refreshStatusesInBackground(true)}><RefreshCw className={syncingStatuses ? "is-spinning" : ""} size={16} />{syncingStatuses ? "Syncing..." : "Sync Discord"}</button>}</div>
+        <div className="page-heading-actions"><span className="date-chip"><CalendarDays size={17} />{today}</span>{user?.role === "ADMIN" && <button className="secondary-button compact" disabled={syncingStatuses} title="Sync Discord, ClickUp, and GitHub for every developer" onClick={() => void refreshStatusesInBackground(true)}><RefreshCw className={syncingStatuses ? "is-spinning" : ""} size={16} />{syncingStatuses ? "Syncing..." : "Sync all"}</button>}</div>
       </section>
 
       <section className="metric-grid dashboard-metrics">

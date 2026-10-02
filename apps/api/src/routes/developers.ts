@@ -104,6 +104,13 @@ developersRouter.get("/:id", async (request, response, next) => {
                       select: { text: true }
                     }
                   }
+                },
+                githubPullRequest: {
+                  select: {
+                    url: true,
+                    lastSyncedAt: true,
+                    syncError: true
+                  }
                 }
               }
             }
@@ -121,10 +128,10 @@ developersRouter.get("/:id", async (request, response, next) => {
         ...developer,
         statusReports: developer.statusReports.map((report) => ({
           ...report,
-          tasks: report.tasks.map(({ clickUpTicket, ...task }) => {
+          tasks: report.tasks.map(({ clickUpTicket, githubPullRequest, ...task }) => {
             const clickUpUrl = clickUpTicket?.url
               ?? (parseClickUpTaskId(task.taskUrl) ? task.taskUrl : null);
-            const pullRequestUrl = findGitHubPullRequestUrl(clickUpTicket?.comments ?? []);
+            const pullRequestUrl = githubPullRequest?.url ?? findGitHubPullRequestUrl(clickUpTicket?.comments ?? []);
             return {
               ...task,
               clickUpUrl,
@@ -214,7 +221,9 @@ developersRouter.post("/:id/sync-tasks", async (request, response, next) => {
       where: { developerId: id, status: { in: [SyncJobStatus.PENDING, SyncJobStatus.RUNNING] } },
       orderBy: { createdAt: "desc" }
     });
-    const job = existingJob ?? await prisma.discordSyncJob.create({ data: { developerId: id } });
+    const job = existingJob
+      ? await prisma.discordSyncJob.update({ where: { id: existingJob.id }, data: { forceRefresh: true } })
+      : await prisma.discordSyncJob.create({ data: { developerId: id, forceRefresh: true } });
     response.status(existingJob ? 200 : 202).json({ job });
   } catch (error) {
     next(error);

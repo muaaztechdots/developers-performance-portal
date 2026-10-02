@@ -9,6 +9,7 @@ import { DeveloperSpecialty, UserRole } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { config } from "../../config.js";
 import { prisma } from "../../lib/prisma.js";
+import { handleDiscordStatusInteraction, registerDiscordStatusCommand } from "./status-command.js";
 
 export type DeveloperSyncResult = {
   threadsScanned: number;
@@ -23,8 +24,8 @@ let ready = false;
 let lastSyncAt: Date | null = null;
 let lastSyncResult: DeveloperSyncResult | null = null;
 
-// Read-only Discord boundary: this service may fetch channels, threads and
-// messages, but it must never send, edit, delete or otherwise mutate Discord.
+// The integration reads only the configured status channel. Its only Discord
+// write is the bot-owned daily message created or edited after a /status form.
 
 function discordIsConfigured() {
   return Boolean(config.DISCORD_BOT_TOKEN && config.DISCORD_GUILD_ID && config.DISCORD_STATUS_CHANNEL_ID);
@@ -180,8 +181,15 @@ export async function startDiscordIntegration() {
   client.once(Events.ClientReady, (connectedClient) => {
     ready = true;
     console.log(`Discord ingestion connected as ${connectedClient.user.tag}`);
+    void registerDiscordStatusCommand(connectedClient)
+      .then(() => console.log("Discord /status command registered."))
+      .catch((error) => console.error("Discord /status command registration failed:", error));
   });
 
+  client.on(Events.InteractionCreate, (interaction) => {
+    void handleDiscordStatusInteraction(interaction)
+      .catch((error) => console.error("Discord interaction error:", error));
+  });
   client.on(Events.Error, (error) => console.error("Discord client error:", error));
   await client.login(config.DISCORD_BOT_TOKEN);
 }

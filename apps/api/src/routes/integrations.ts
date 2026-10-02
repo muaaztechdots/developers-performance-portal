@@ -57,7 +57,7 @@ integrationsRouter.post("/discord/sync-statuses", async (_request, response, nex
         where: { developerId: developer.id, status: { in: [SyncJobStatus.PENDING, SyncJobStatus.RUNNING] } },
         orderBy: { createdAt: "desc" }
       });
-      const job = activeJob ?? await prisma.discordSyncJob.create({ data: { developerId: developer.id } });
+      const job = activeJob ?? await prisma.discordSyncJob.create({ data: { developerId: developer.id, forceRefresh: false } });
       jobs.push({ ...job, developer: { id: developer.id, user: developer.user } });
     }
 

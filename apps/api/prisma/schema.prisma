@@ -42,6 +42,7 @@ enum SyncJobStatus {
 enum SyncJobPhase {
   DISCORD
   CLICKUP
+  GITHUB
 }
 
 model User {
@@ -61,31 +62,33 @@ model User {
 }
 
 model Developer {
-  id                String             @id @default(uuid()) @db.Uuid
-  userId            String             @unique @map("user_id") @db.Uuid
-  jobTitle          String?            @map("job_title") @db.VarChar(150)
-  department        String?            @db.VarChar(150)
-  timezone          String             @default("Asia/Karachi") @db.VarChar(100)
-  specialty         DeveloperSpecialty @default(ENGINEERING)
-  discordThreadId   String?            @unique @map("discord_thread_id") @db.VarChar(32)
-  discordThreadName String?            @map("discord_thread_name") @db.VarChar(200)
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String                    @id @default(uuid()) @db.Uuid
+  userId            String                    @unique @map("user_id") @db.Uuid
+  jobTitle          String?                   @map("job_title") @db.VarChar(150)
+  department        String?                   @db.VarChar(150)
+  timezone          String                    @default("Asia/Karachi") @db.VarChar(100)
+  specialty         DeveloperSpecialty        @default(ENGINEERING)
+  discordThreadId   String?                   @unique @map("discord_thread_id") @db.VarChar(32)
+  discordThreadName String?                   @map("discord_thread_name") @db.VarChar(200)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   statusReports     StatusReport[]
   syncJobs          DiscordSyncJob[]
+  statusSubmissions DiscordStatusSubmission[]
 
   @@map("developers")
 }
 
 model Project {
-  id             String         @id @default(uuid()) @db.Uuid
-  name           String         @db.VarChar(200)
-  normalizedName String         @unique @map("normalized_name") @db.VarChar(200)
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-  aliases        ProjectAlias[]
-  tasks          StatusTask[]
+  id                    String                        @id @default(uuid()) @db.Uuid
+  name                  String                        @db.VarChar(200)
+  normalizedName        String                        @unique @map("normalized_name") @db.VarChar(200)
+  createdAt             DateTime                      @default(now()) @map("created_at")
+  updatedAt             DateTime                      @updatedAt @map("updated_at")
+  aliases               ProjectAlias[]
+  tasks                 StatusTask[]
+  statusSubmissionTasks DiscordStatusSubmissionTask[]
 
   @@map("projects")
 }
@@ -126,27 +129,30 @@ model StatusReport {
 }
 
 model StatusTask {
-  id              String         @id @default(uuid()) @db.Uuid
-  statusReportId  String         @map("status_report_id") @db.Uuid
-  period          ReportPeriod
-  projectName     String?        @map("project_name") @db.VarChar(200)
-  projectId       String?        @map("project_id") @db.Uuid
-  description     String         @db.Text
-  details         String?        @db.Text
-  durationMinutes Int?           @map("duration_minutes")
-  taskUrl         String?        @map("task_url") @db.Text
-  status          TaskStatus?
-  clickUpTaskId   String?        @map("clickup_task_id") @db.VarChar(100)
-  sortOrder       Int            @default(0) @map("sort_order")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-  statusReport    StatusReport   @relation(fields: [statusReportId], references: [id], onDelete: Cascade)
-  project         Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  clickUpTicket   ClickUpTicket? @relation(fields: [clickUpTaskId], references: [id], onDelete: SetNull)
+  id                  String             @id @default(uuid()) @db.Uuid
+  statusReportId      String             @map("status_report_id") @db.Uuid
+  period              ReportPeriod
+  projectName         String?            @map("project_name") @db.VarChar(200)
+  projectId           String?            @map("project_id") @db.Uuid
+  description         String             @db.Text
+  details             String?            @db.Text
+  durationMinutes     Int?               @map("duration_minutes")
+  taskUrl             String?            @map("task_url") @db.Text
+  status              TaskStatus?
+  clickUpTaskId       String?            @map("clickup_task_id") @db.VarChar(100)
+  githubPullRequestId String?            @map("github_pull_request_id") @db.Uuid
+  sortOrder           Int                @default(0) @map("sort_order")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  statusReport        StatusReport       @relation(fields: [statusReportId], references: [id], onDelete: Cascade)
+  project             Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  clickUpTicket       ClickUpTicket?     @relation(fields: [clickUpTaskId], references: [id], onDelete: SetNull)
+  githubPullRequest   GitHubPullRequest? @relation(fields: [githubPullRequestId], references: [id], onDelete: SetNull)
 
   @@index([statusReportId, period, sortOrder])
   @@index([projectId])
   @@index([clickUpTaskId])
+  @@index([githubPullRequestId])
   @@map("status_tasks")
 }
 
@@ -184,25 +190,119 @@ model ClickUpComment {
   @@map("clickup_comments")
 }
 
+model GitHubPullRequest {
+  id                String                  @id @default(uuid()) @db.Uuid
+  owner             String                  @db.VarChar(100)
+  repository        String                  @db.VarChar(100)
+  number            Int
+  url               String                  @db.Text
+  title             String?                 @db.Text
+  state             String?                 @db.VarChar(30)
+  draft             Boolean                 @default(false)
+  merged            Boolean                 @default(false)
+  author            String?                 @db.VarChar(320)
+  authorAvatar      String?                 @map("author_avatar") @db.Text
+  sourceBranch      String?                 @map("source_branch") @db.Text
+  targetBranch      String?                 @map("target_branch") @db.Text
+  additions         Int                     @default(0)
+  deletions         Int                     @default(0)
+  changedFiles      Int                     @default(0) @map("changed_files")
+  filesTruncated    Boolean                 @default(false) @map("files_truncated")
+  lastSyncAttemptAt DateTime?               @map("last_sync_attempt_at")
+  lastSyncedAt      DateTime?               @map("last_synced_at")
+  syncError         String?                 @map("sync_error") @db.Text
+  syncErrorKind     String?                 @map("sync_error_kind") @db.VarChar(30)
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  tasks             StatusTask[]
+  files             GitHubPullRequestFile[]
+
+  @@unique([owner, repository, number])
+  @@index([lastSyncAttemptAt])
+  @@map("github_pull_requests")
+}
+
+model GitHubPullRequestFile {
+  id                  String            @id @default(uuid()) @db.Uuid
+  githubPullRequestId String            @map("github_pull_request_id") @db.Uuid
+  filename            String            @db.Text
+  status              String            @db.VarChar(30)
+  additions           Int               @default(0)
+  deletions           Int               @default(0)
+  changes             Int               @default(0)
+  patch               String?           @db.Text
+  previousFilename    String?           @map("previous_filename") @db.Text
+  blobUrl             String?           @map("blob_url") @db.Text
+  sortOrder           Int               @default(0) @map("sort_order")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  pullRequest         GitHubPullRequest @relation(fields: [githubPullRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([githubPullRequestId, filename])
+  @@index([githubPullRequestId, sortOrder])
+  @@map("github_pull_request_files")
+}
+
 model DiscordSyncJob {
-  id                String        @id @default(uuid()) @db.Uuid
-  developerId       String        @map("developer_id") @db.Uuid
-  status            SyncJobStatus @default(PENDING)
-  phase             SyncJobPhase  @default(DISCORD)
-  processedMessages Int           @default(0) @map("processed_messages")
-  importedReports   Int           @default(0) @map("imported_reports")
-  importedTasks     Int           @default(0) @map("imported_tasks")
-  clickUpLinkedTasks Int          @default(0) @map("clickup_linked_tasks")
-  clickUpProcessedTickets Int     @default(0) @map("clickup_processed_tickets")
-  clickUpSyncedTickets Int        @default(0) @map("clickup_synced_tickets")
-  clickUpFailedTickets Int        @default(0) @map("clickup_failed_tickets")
-  error             String?       @db.Text
-  createdAt         DateTime      @default(now()) @map("created_at")
-  startedAt         DateTime?     @map("started_at")
-  completedAt       DateTime?     @map("completed_at")
-  developer         Developer     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  id                          String        @id @default(uuid()) @db.Uuid
+  developerId                 String        @map("developer_id") @db.Uuid
+  status                      SyncJobStatus @default(PENDING)
+  phase                       SyncJobPhase  @default(DISCORD)
+  forceRefresh                Boolean       @default(false) @map("force_refresh")
+  processedMessages           Int           @default(0) @map("processed_messages")
+  importedReports             Int           @default(0) @map("imported_reports")
+  importedTasks               Int           @default(0) @map("imported_tasks")
+  clickUpLinkedTasks          Int           @default(0) @map("clickup_linked_tasks")
+  clickUpProcessedTickets     Int           @default(0) @map("clickup_processed_tickets")
+  clickUpSyncedTickets        Int           @default(0) @map("clickup_synced_tickets")
+  clickUpFailedTickets        Int           @default(0) @map("clickup_failed_tickets")
+  githubLinkedTasks           Int           @default(0) @map("github_linked_tasks")
+  githubProcessedPullRequests Int           @default(0) @map("github_processed_pull_requests")
+  githubSyncedPullRequests    Int           @default(0) @map("github_synced_pull_requests")
+  githubFailedPullRequests    Int           @default(0) @map("github_failed_pull_requests")
+  error                       String?       @db.Text
+  createdAt                   DateTime      @default(now()) @map("created_at")
+  startedAt                   DateTime?     @map("started_at")
+  completedAt                 DateTime?     @map("completed_at")
+  developer                   Developer     @relation(fields: [developerId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
   @@index([developerId, createdAt])
   @@map("discord_sync_jobs")
+}
+
+model DiscordStatusSubmission {
+  id          String                        @id @default(uuid()) @db.Uuid
+  developerId String                        @map("developer_id") @db.Uuid
+  reportDate  DateTime                      @map("report_date") @db.Date
+  threadId    String                        @map("thread_id") @db.VarChar(32)
+  messageId   String?                       @unique @map("message_id") @db.VarChar(32)
+  createdAt   DateTime                      @default(now()) @map("created_at")
+  updatedAt   DateTime                      @updatedAt @map("updated_at")
+  developer   Developer                     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  tasks       DiscordStatusSubmissionTask[]
+
+  @@unique([developerId, reportDate])
+  @@index([threadId, reportDate])
+  @@map("discord_status_submissions")
+}
+
+model DiscordStatusSubmissionTask {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  submissionId             String                  @map("submission_id") @db.Uuid
+  projectId                String?                 @map("project_id") @db.Uuid
+  projectName              String                  @map("project_name") @db.VarChar(200)
+  description              String                  @db.Text
+  details                  String                  @db.Text
+  durationMinutes          Int                     @map("duration_minutes")
+  taskUrl                  String?                 @map("task_url") @db.Text
+  pullRequestUrl           String?                 @map("pull_request_url") @db.Text
+  submittedByDiscordUserId String                  @map("submitted_by_discord_user_id") @db.VarChar(32)
+  sortOrder                Int                     @default(0) @map("sort_order")
+  createdAt                DateTime                @default(now()) @map("created_at")
+  submission               DiscordStatusSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  project                  Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([submissionId, sortOrder])
+  @@index([projectId])
+  @@map("discord_status_submission_tasks")
 }

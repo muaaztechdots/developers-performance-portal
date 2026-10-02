@@ -118,11 +118,20 @@ export async function importDeveloperThreadTasks(
   if (!developer?.discordThreadId) throw new Error("This developer is not linked to a Discord thread.");
 
   const messages = await fetchAllThreadMessages(developer.discordThreadId);
+  const botSubmissions = await prisma.discordStatusSubmission.findMany({
+    where: { developerId: developer.id, messageId: { not: null } },
+    select: { messageId: true }
+  });
+  const trustedBotMessageIds = new Set(botSubmissions.flatMap(({ messageId }) => messageId ? [messageId] : []));
+  const orderedMessages = [
+    ...messages.filter((message) => !trustedBotMessageIds.has(message.id)),
+    ...messages.filter((message) => trustedBotMessageIds.has(message.id))
+  ];
   const progress: ImportProgress = { processedMessages: 0, importedReports: 0, importedTasks: 0 };
 
-  for (const message of messages) {
+  for (const message of orderedMessages) {
     progress.processedMessages += 1;
-    if (!message.author?.bot) {
+    if (!message.author?.bot || trustedBotMessageIds.has(message.id)) {
       const imported = await prisma.$transaction((transaction) =>
         importTodayTasks(transaction, developer.id, developer.discordThreadId!, message)
       );

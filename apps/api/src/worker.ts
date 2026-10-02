@@ -2,10 +2,12 @@ import { SyncJobPhase, SyncJobStatus } from "@prisma/client";
 import { prisma } from "./lib/prisma.js";
 import { importDeveloperThreadTasks } from "./integrations/discord/task-importer.js";
 import { CLICKUP_REFRESH_INTERVAL_MS, syncClickUpTickets, type ClickUpSyncOptions } from "./integrations/clickup/sync.js";
+import { syncGitHubPullRequests, type GitHubSyncOptions } from "./integrations/github/sync.js";
 
 let stopping = false;
 let processing = false;
 let clickUpQueue: Promise<void> = Promise.resolve();
+let githubQueue: Promise<void> = Promise.resolve();
 
 function processClickUpQueue(options: ClickUpSyncOptions = {}) {
   const cycle = clickUpQueue.then(async () => {
@@ -18,6 +20,20 @@ function processClickUpQueue(options: ClickUpSyncOptions = {}) {
     return result;
   });
   clickUpQueue = cycle.then(() => undefined, () => undefined);
+  return cycle;
+}
+
+function processGitHubQueue(options: GitHubSyncOptions = {}) {
+  const cycle = githubQueue.then(async () => {
+    console.log(`[github] ${options.force ? "Forced " : ""}sync cycle started${options.developerId ? ` for developer ${options.developerId}` : ""}.`);
+    const result = await syncGitHubPullRequests(options);
+    const rateLimitMessage = result.rateLimitedUntil
+      ? ` Rate limited; remaining pull requests will resume after ${result.rateLimitedUntil.toISOString()}.`
+      : "";
+    console.log(`[github] Sync cycle completed: ${result.syncedPullRequests} synced, ${result.failedPullRequests} failed, ${result.linkedTasks} tasks linked.${rateLimitMessage}`);
+    return result;
+  });
+  githubQueue = cycle.then(() => undefined, () => undefined);
   return cycle;
 }
 
@@ -38,7 +54,11 @@ async function claimNextJob() {
       clickUpLinkedTasks: 0,
       clickUpProcessedTickets: 0,
       clickUpSyncedTickets: 0,
-      clickUpFailedTickets: 0
+      clickUpFailedTickets: 0,
+      githubLinkedTasks: 0,
+      githubProcessedPullRequests: 0,
+      githubSyncedPullRequests: 0,
+      githubFailedPullRequests: 0
     }
   });
   return claimed.count === 1 ? candidate : null;
@@ -59,20 +79,35 @@ async function processQueue() {
           where: { id: job.id },
           data: { ...result, phase: SyncJobPhase.CLICKUP }
         });
-        const clickUpResult = await processClickUpQueue({ developerId: job.developerId, force: true });
+        const refreshPolicy = await prisma.discordSyncJob.findUniqueOrThrow({
+          where: { id: job.id },
+          select: { forceRefresh: true }
+        });
+        const clickUpResult = await processClickUpQueue({ developerId: job.developerId, force: refreshPolicy.forceRefresh });
+        await prisma.discordSyncJob.update({
+          where: { id: job.id },
+          data: {
+            phase: SyncJobPhase.GITHUB,
+            clickUpLinkedTasks: clickUpResult.linkedTasks,
+            clickUpProcessedTickets: clickUpResult.processedTickets,
+            clickUpSyncedTickets: clickUpResult.syncedTickets,
+            clickUpFailedTickets: clickUpResult.failedTickets
+          }
+        });
+        const githubResult = await processGitHubQueue({ developerId: job.developerId, force: refreshPolicy.forceRefresh });
         await prisma.discordSyncJob.update({
           where: { id: job.id },
           data: {
             status: SyncJobStatus.COMPLETED,
-            clickUpLinkedTasks: clickUpResult.linkedTasks,
-            clickUpProcessedTickets: clickUpResult.processedTickets,
-            clickUpSyncedTickets: clickUpResult.syncedTickets,
-            clickUpFailedTickets: clickUpResult.failedTickets,
+            githubLinkedTasks: githubResult.linkedTasks,
+            githubProcessedPullRequests: githubResult.processedPullRequests,
+            githubSyncedPullRequests: githubResult.syncedPullRequests,
+            githubFailedPullRequests: githubResult.failedPullRequests,
             completedAt: new Date()
           }
         });
       } catch (error) {
-        console.error(`Discord task sync ${job.id} failed:`, error);
+        console.error(`Developer sync job ${job.id} failed:`, error);
         await prisma.discordSyncJob.update({
           where: { id: job.id },
           data: {
@@ -95,14 +130,18 @@ await prisma.discordSyncJob.updateMany({
 
 console.log("Discord task worker is ready.");
 const timer = setInterval(() => void processQueue(), 1_500);
-const clickUpTimer = setInterval(() => void processClickUpQueue().catch((error) => console.error("[clickup] Scheduled sync cycle failed:", error)), CLICKUP_REFRESH_INTERVAL_MS);
+async function refreshStaleIntegrations() {
+  await processClickUpQueue();
+  await processGitHubQueue();
+}
+const integrationTimer = setInterval(() => void refreshStaleIntegrations().catch((error) => console.error("[integrations] Scheduled sync cycle failed:", error)), CLICKUP_REFRESH_INTERVAL_MS);
 void processQueue();
-void processClickUpQueue().catch((error) => console.error("[clickup] Startup sync cycle failed:", error));
+void refreshStaleIntegrations().catch((error) => console.error("[integrations] Startup sync cycle failed:", error));
 
 async function shutdown() {
   stopping = true;
   clearInterval(timer);
-  clearInterval(clickUpTimer);
+  clearInterval(integrationTimer);
   await prisma.$disconnect();
   process.exit(0);
 }
