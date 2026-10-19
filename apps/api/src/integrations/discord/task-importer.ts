@@ -2,8 +2,9 @@ import { ReportPeriod, ReportSource, UserRole, type Prisma } from "@prisma/clien
 import { REST, Routes } from "discord.js";
 import { config } from "../../config.js";
 import { prisma } from "../../lib/prisma.js";
+import { parserOptionsForDeveloper } from "./developer-status-format.js";
 import { loadProjectCatalog, selectMatchingProject } from "./project-matcher.js";
-import { parseDiscordStatuses } from "./status-parser.js";
+import { parseDiscordStatuses, type DiscordStatusParserOptions } from "./status-parser.js";
 
 type DiscordMessage = {
   id: string;
@@ -53,9 +54,10 @@ async function importTodayTasks(
   transaction: Prisma.TransactionClient,
   developerId: string,
   threadId: string,
-  message: DiscordMessage
+  message: DiscordMessage,
+  parserOptions: DiscordStatusParserOptions
 ) {
-  const parsedReports = parseDiscordStatuses(message.content);
+  const parsedReports = parseDiscordStatuses(message.content, parserOptions);
   const projectCatalog = await loadProjectCatalog(transaction);
   let importedReports = 0;
   let importedTasks = 0;
@@ -113,9 +115,11 @@ export async function importDeveloperThreadTasks(
   onProgress?: (progress: ImportProgress) => Promise<void>
 ) {
   const developer = await prisma.developer.findFirst({
-    where: { id: developerId, user: { role: UserRole.DEVELOPER } }
+    where: { id: developerId, user: { role: UserRole.DEVELOPER } },
+    include: { user: { select: { firstName: true } } }
   });
   if (!developer?.discordThreadId) throw new Error("This developer is not linked to a Discord thread.");
+  const parserOptions = parserOptionsForDeveloper(developer.user);
 
   const messages = await fetchAllThreadMessages(developer.discordThreadId);
   const botSubmissions = await prisma.discordStatusSubmission.findMany({
@@ -133,7 +137,7 @@ export async function importDeveloperThreadTasks(
     progress.processedMessages += 1;
     if (!message.author?.bot || trustedBotMessageIds.has(message.id)) {
       const imported = await prisma.$transaction((transaction) =>
-        importTodayTasks(transaction, developer.id, developer.discordThreadId!, message)
+        importTodayTasks(transaction, developer.id, developer.discordThreadId!, message, parserOptions)
       );
       progress.importedReports += imported.importedReports;
       progress.importedTasks += imported.importedTasks;

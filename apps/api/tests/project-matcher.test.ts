@@ -28,6 +28,7 @@ describe("project-name matching", () => {
     "Homeli Care Web App",
     "HomeliCare Mobile",
     "HomeliCare Mobile App",
+    "HomeliCare Mob App",
     "HomeliCare App",
     "Project HomeliCare"
   ])("normalizes the project variant %s to one comparison key", (name) => {
@@ -37,6 +38,10 @@ describe("project-name matching", () => {
   it("applies platform suffix handling to every project", () => {
     expect(normalizeProjectName("EasyRinger Web App")).toBe("easyringer");
     expect(normalizeProjectName("Q-Score Mob App")).toBe("qscore");
+  });
+
+  it("normalizes spacing around punctuation in project headings", () => {
+    expect(normalizeProjectName("OSS -Blogging")).toBe(normalizeProjectName("OSS - Blogging"));
   });
 
   it("does not strip platform words from the middle of a project name", () => {

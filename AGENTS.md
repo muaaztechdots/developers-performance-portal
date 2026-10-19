@@ -113,6 +113,7 @@ The API handles HTTP requests and Discord connection status. The worker owns lon
 |   |   |   |-- integrations/
 |   |   |   |   |-- discord/
 |   |   |   |   |   |-- service.ts          # Discord connection/thread discovery
+|   |   |   |   |   |-- developer-status-format.ts # Per-developer parser defaults
 |   |   |   |   |   |-- status-parser.ts    # Status text -> dated task records
 |   |   |   |   |   |-- task-importer.ts    # Thread history -> reports/tasks
 |   |   |   |   |   `-- project-matcher.ts  # Catalog normalization/fuzzy matching
@@ -263,7 +264,7 @@ The intended stored tasks are:
 
 ### Parser behavior
 
-- Accepts dates in `DD/MM/YYYY`, `DD-MM-YYYY`, or `DD.MM.YYYY` form, including two-digit years.
+- Accepts dates in `DD/MM/YYYY`, `DD-MM-YYYY`, or `DD.MM.YYYY` form, including two-digit years, plus written dates such as `Date: October 16, 2026`.
 - Supports multiple dated sections in one Discord message.
 - Decodes common HTML space entities such as `&#x20;` and `&nbsp;`.
 - Removes Markdown bold markers, status markers, URLs, and duration tokens from display text.
@@ -275,9 +276,13 @@ The intended stored tasks are:
 - Treats a non-bullet task heading after a project as the `StatusTask.description`.
 - Treats following bullet points as `StatusTask.details`, separated by newline.
 - In bot-style blocks, also treats plain non-bullet lines after a timed task heading as details until the next blank-separated project/task block.
-- Adds durations from detail bullets to the parent task's `durationMinutes`.
+- For a status-marked parent heading followed immediately by unbulleted timed subtasks, keeps those lines as task details and sums every subtask duration into the parent.
+- Adds durations from task-detail lines to the parent task's `durationMinutes`.
 - Uses the first available task/detail URL as `taskUrl`.
-- Only the `Today:` section is imported.
+- Accepts `Today` as a standalone heading without a trailing colon and carries a short project heading immediately before it into the Today tasks.
+- Supports QA-style `Task title: task description` blocks. A following ClickUp ticket-title line plus URL is treated as link metadata for that task, not as another imported task.
+- Burhan's parser profile defaults a missing project heading to canonical `Lightening`; explicit project headings still take precedence, and other developers receive no project fallback.
+- Only the Today section is imported.
 
 ### Import behavior
 

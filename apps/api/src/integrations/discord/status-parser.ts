@@ -16,10 +16,28 @@ export type ParsedDiscordStatus = {
   tasks: ParsedStatusTask[];
 };
 
+export type DiscordStatusParserOptions = {
+  defaultProjectName?: string | null;
+};
+
 const ACTION_WORDS = "worked|working|added|adding|fixed|fixing|implemented|implementing|prevented|preventing|investigated|investigating|paired|contacted|contacting|learned|learning|created|creating|started|starting|tested|testing|reviewed|reviewing|deployed|deploying|flagged|discussed|explored|exploring|enhanced|enhancing|ran|running|live";
 const CAPITALIZED_ACTION_WORDS = "Worked|Working|Added|Adding|Fixed|Fixing|Implemented|Implementing|Prevented|Preventing|Investigated|Investigating|Paired|Contacted|Contacting|Learned|Learning|Created|Creating|Started|Starting|Tested|Testing|Reviewed|Reviewing|Deployed|Deploying|Flagged|Discussed|Explored|Exploring|Enhanced|Enhancing|Ran|Running|Live";
 const STATUS_MARKER = /\s*\[(?:DONE|WIP|IN PROGRESS|BLOCKED|COMPLETED)\]\s*/gi;
 const HAS_STATUS_MARKER = /\[(?:DONE|WIP|IN PROGRESS|BLOCKED|COMPLETED)\]/i;
+const MONTH_NUMBER: Record<string, number> = {
+  january: 1,
+  february: 2,
+  march: 3,
+  april: 4,
+  may: 5,
+  june: 6,
+  july: 7,
+  august: 8,
+  september: 9,
+  october: 10,
+  november: 11,
+  december: 12
+};
 
 function decodeFormatting(value: string) {
   return value
@@ -47,6 +65,7 @@ function dateValue(day: number, month: number, rawYear: number) {
 function datedSections(content: string) {
   const value = decodeFormatting(content);
   const datePattern = /(?:^|[\s"'])(?:\d+\.\s*)?(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})(?=\s|:|$)\s*:?/gm;
+  const namedDatePattern = /(?:^|[\s"'])(?:date\s*:\s*)?(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4}|\d{2})(?=\s|:|$)\s*:?/gim;
   const matches: Array<{ index: number; bodyStart: number; date: NonNullable<ReturnType<typeof dateValue>> }> = [];
   let match: RegExpExecArray | null;
 
@@ -56,6 +75,15 @@ function datedSections(content: string) {
     const date = dateValue(Number(match[1]), Number(match[2]), Number(match[3]));
     if (date) matches.push({ index: match.index, bodyStart: datePattern.lastIndex, date });
   }
+
+  while ((match = namedDatePattern.exec(value)) !== null) {
+    const context = value.slice(Math.max(0, match.index - 30), match.index);
+    if (/leave\s+on\s*["']?$/i.test(context)) continue;
+    const date = dateValue(Number(match[2]), MONTH_NUMBER[match[1].toLowerCase()], Number(match[3]));
+    if (date) matches.push({ index: match.index, bodyStart: namedDatePattern.lastIndex, date });
+  }
+
+  matches.sort((left, right) => left.index - right.index);
 
   return matches.map((item, index) => ({
     ...item.date,
@@ -159,6 +187,7 @@ function isProjectHeading(value: string, nextLine?: LogicalLine) {
 
 function isProjectWithTaskHeading(value: string, nextLine?: LogicalLine, followingLine?: LogicalLine) {
   if (!nextLine || nextLine.isBullet) return false;
+  if (HAS_STATUS_MARKER.test(value)) return false;
   if (!HAS_STATUS_MARKER.test(nextLine.value) && !followingLine?.isBullet && parseDuration(nextLine.value) === null) return false;
 
   const project = value.replace(STATUS_MARKER, "").replace(/:$/, "").trim();
@@ -171,11 +200,34 @@ function isProjectWithTaskHeading(value: string, nextLine?: LogicalLine, followi
     && !new RegExp(`^(?:${ACTION_WORDS})\\b`, "i").test(project);
 }
 
-function parseTodaySection(section: string) {
+function inlineTaskWithDetails(value: string) {
+  const match = value.match(/^([^:\n]{1,120}):\s+(.+)$/);
+  if (!match) return null;
+
+  const title = cleanDescription(match[1]);
+  const details = cleanDetail(match[2]);
+  if (!title || !details || /^(?:today|yesterday|task|pr|pull request)$/i.test(title)) return null;
+  return { title, details };
+}
+
+function projectBeforeToday(body: string, todayIndex: number) {
+  const beforeToday = body.slice(0, todayIndex).trim();
+  if (!beforeToday || /\byesterday\s*:/i.test(beforeToday)) return null;
+
+  const candidate = beforeToday.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).at(-1);
+  if (!candidate || extractUrl(candidate) || parseDuration(candidate) !== null) return null;
+
+  const project = candidate.replace(STATUS_MARKER, "").replace(/:$/, "").trim();
+  return project && project.split(/\s+/).length <= 4 && !/[.!?]$/.test(project) ? project : null;
+}
+
+function parseTodaySection(section: string, initialProjectName: string | null = null) {
   const lines = logicalLines(section);
   const tasks: ParsedStatusTask[] = [];
-  let projectName: string | null = null;
+  let projectName: string | null = initialProjectName;
   let groupedTask: ParsedStatusTask | null = null;
+  let groupedTaskHasInlineDetails = false;
+  let groupedTaskUsesUnbulletedSubtasks = false;
 
   function addTask(description: string, line: string) {
     const task: ParsedStatusTask = {
@@ -201,9 +253,48 @@ function parseTodaySection(section: string) {
       continue;
     }
 
+    const inlineTask = !logicalLine.isBullet && logicalLine.startsBlock && projectName
+      ? inlineTaskWithDetails(line)
+      : null;
+    if (inlineTask) {
+      groupedTask = addTask(inlineTask.title, line);
+      groupedTask.details = inlineTask.details;
+      groupedTaskHasInlineDetails = true;
+      groupedTaskUsesUnbulletedSubtasks = false;
+      continue;
+    }
+
+    if (
+      !logicalLine.isBullet
+      && groupedTask
+      && groupedTaskHasInlineDetails
+      && logicalLine.startsBlock
+      && lines[index + 1]
+      && extractUrl(lines[index + 1].value)
+      && !cleanDescription(lines[index + 1].value)
+    ) {
+      continue;
+    }
+
+    if (
+      !logicalLine.isBullet
+      && groupedTask
+      && groupedTaskUsesUnbulletedSubtasks
+      && !logicalLine.startsBlock
+    ) {
+      const detail = cleanDetail(line);
+      if (detail) groupedTask.details = groupedTask.details ? `${groupedTask.details}\n${detail}` : detail;
+      const detailMinutes = parseDuration(line);
+      if (detailMinutes !== null) groupedTask.durationMinutes = (groupedTask.durationMinutes ?? 0) + detailMinutes;
+      if (!groupedTask.taskUrl) groupedTask.taskUrl = extractUrl(line);
+      continue;
+    }
+
     if (!logicalLine.isBullet && isProjectWithTaskHeading(line, lines[index + 1], lines[index + 2])) {
       projectName = line.replace(STATUS_MARKER, "").replace(/:$/, "").trim();
       groupedTask = null;
+      groupedTaskHasInlineDetails = false;
+      groupedTaskUsesUnbulletedSubtasks = false;
       continue;
     }
 
@@ -212,6 +303,8 @@ function parseTodaySection(section: string) {
       projectName = headingLink[1].replace(/:$/, "").trim();
       groupedTask = addTask(headingLink[2].trim(), line);
       groupedTask.taskUrl = headingLink[3];
+      groupedTaskHasInlineDetails = false;
+      groupedTaskUsesUnbulletedSubtasks = false;
       continue;
     }
 
@@ -221,7 +314,13 @@ function parseTodaySection(section: string) {
       && (HAS_STATUS_MARKER.test(line) || parseDuration(line) !== null)
     ) {
       const description = cleanDescription(line);
-      if (description) groupedTask = addTask(description, line);
+      if (description) {
+        groupedTask = addTask(description, line);
+        groupedTaskHasInlineDetails = false;
+        groupedTaskUsesUnbulletedSubtasks = HAS_STATUS_MARKER.test(line)
+          && parseDuration(line) === null
+          && Boolean(lines[index + 1] && !lines[index + 1].isBullet && !lines[index + 1].startsBlock && parseDuration(lines[index + 1].value) !== null);
+      }
       continue;
     }
 
@@ -237,13 +336,19 @@ function parseTodaySection(section: string) {
     if (!logicalLine.isBullet && groupedTask && !logicalLine.startsBlock) {
       const detail = cleanDetail(line);
       if (detail) groupedTask.details = groupedTask.details ? `${groupedTask.details}\n${detail}` : detail;
+      const detailMinutes = parseDuration(line);
+      if (detailMinutes !== null) groupedTask.durationMinutes = (groupedTask.durationMinutes ?? 0) + detailMinutes;
       if (!groupedTask.taskUrl) groupedTask.taskUrl = extractUrl(line);
       continue;
     }
 
     if (!logicalLine.isBullet && projectName && lines[index + 1]?.isBullet && !/:\s*$/.test(line)) {
       const description = cleanDescription(line);
-      if (description) groupedTask = addTask(description, line);
+      if (description) {
+        groupedTask = addTask(description, line);
+        groupedTaskHasInlineDetails = false;
+        groupedTaskUsesUnbulletedSubtasks = false;
+      }
       continue;
     }
 
@@ -251,10 +356,14 @@ function parseTodaySection(section: string) {
     if (inline) {
       projectName = inline.project;
       groupedTask = null;
+      groupedTaskHasInlineDetails = false;
+      groupedTaskUsesUnbulletedSubtasks = false;
       line = inline.task;
     } else if (!logicalLine.isBullet && isProjectHeading(line, lines[index + 1])) {
       projectName = line.replace(STATUS_MARKER, "").replace(/:$/, "").trim();
       groupedTask = null;
+      groupedTaskHasInlineDetails = false;
+      groupedTaskUsesUnbulletedSubtasks = false;
       continue;
     }
 
@@ -268,27 +377,32 @@ function parseTodaySection(section: string) {
 
     addTask(description, line);
     groupedTask = null;
+    groupedTaskHasInlineDetails = false;
+    groupedTaskUsesUnbulletedSubtasks = false;
   }
 
   return tasks;
 }
 
-export function parseDiscordStatuses(content: string): ParsedDiscordStatus[] {
+export function parseDiscordStatuses(content: string, options: DiscordStatusParserOptions = {}): ParsedDiscordStatus[] {
   const reports: ParsedDiscordStatus[] = [];
 
   for (const section of datedSections(content)) {
-    const todayMarker = /\btoday\s*:/i.exec(section.body);
+    const todayMarker = /\btoday\s*:|^[ \t]*today[ \t]*(?=\r?$)/im.exec(section.body);
     const hasYesterdayMarker = /\byesterday\s*:/i.test(section.body);
     const todayContent = todayMarker
       ? section.body.slice(todayMarker.index + todayMarker[0].length)
       : hasYesterdayMarker ? "" : section.body;
-    const tasks = parseTodaySection(todayContent.replace(/^[\s:'"]+|[\s'"]+$/g, ""));
+    const initialProjectName = (todayMarker ? projectBeforeToday(section.body, todayMarker.index) : null)
+      ?? options.defaultProjectName
+      ?? null;
+    const tasks = parseTodaySection(todayContent.replace(/^[\s:'"]+|[\s'"]+$/g, ""), initialProjectName);
     if (tasks.length) reports.push({ reportDate: section.reportDate, reportDateIso: section.reportDateIso, tasks });
   }
 
   return reports;
 }
 
-export function parseDiscordStatus(content: string): ParsedDiscordStatus | null {
-  return parseDiscordStatuses(content)[0] ?? null;
+export function parseDiscordStatus(content: string, options: DiscordStatusParserOptions = {}): ParsedDiscordStatus | null {
+  return parseDiscordStatuses(content, options)[0] ?? null;
 }

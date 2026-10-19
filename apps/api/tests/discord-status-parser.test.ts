@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parserOptionsForDeveloper } from "../src/integrations/discord/developer-status-format.js";
 import { parseDiscordStatus, parseDiscordStatuses } from "../src/integrations/discord/status-parser.js";
 
 describe("Discord daily status parser", () => {
@@ -254,6 +255,321 @@ this this`);
         sortOrder: 1
       })
     ]);
+  });
+
+  it("groups Sadaf's title, description, ClickUp ticket label, and link blocks", () => {
+    const result = parseDiscordStatus(`09/10/26
+homelicare
+today
+Production Deployment: Reviewed the ticket for combining six branches into deploy/prod-8oct for a single PR into main and verified the related QA feedback.
+
+Combined six branches into deploy/prod-8oct for a single PR into main
+https://app.clickup.com/t/42060460/z8q7hbgmjt
+
+Rejected Geofence Attempts: Reviewed the backend changes for persisting rejected geofence attempts and displaying geofence validation results on the visit timeline.
+
+[BE] Persist rejected geofence attempts and show geofence results on the visit timeline
+https://app.clickup.com/t/42060460/z8q7hbdhpf
+
+Mobile Attendance Location Handling: Reviewed the check-in and check-out location handling changes and verified the related QA feedback.
+
+[Mobile] Location handling at attendance check-in and check-out
+https://app.clickup.com/t/42060460/z8q7hbdhpm
+
+Geofence Enforcement: Reviewed the backend changes for enabling geofence enforcement by default and flagging visits with missing location data.
+
+[BE] Geofence enforcement on by default, and flag visits with no location
+https://app.clickup.com/t/42060460/z8q7hbdhpj
+
+QA Feedback Review: Verified the feedback provided by Talha, reviewed the reported issues, and moved tickets back to QA that require separate handling and verification.`);
+
+    expect(result?.reportDateIso).toBe("2026-10-09");
+    expect(result?.tasks).toEqual([
+      expect.objectContaining({
+        projectName: "homelicare",
+        description: "Production Deployment",
+        details: "Reviewed the ticket for combining six branches into deploy/prod-8oct for a single PR into main and verified the related QA feedback.",
+        durationMinutes: null,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbgmjt",
+        sortOrder: 0
+      }),
+      expect.objectContaining({
+        projectName: "homelicare",
+        description: "Rejected Geofence Attempts",
+        details: "Reviewed the backend changes for persisting rejected geofence attempts and displaying geofence validation results on the visit timeline.",
+        durationMinutes: null,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbdhpf",
+        sortOrder: 1
+      }),
+      expect.objectContaining({
+        projectName: "homelicare",
+        description: "Mobile Attendance Location Handling",
+        details: "Reviewed the check-in and check-out location handling changes and verified the related QA feedback.",
+        durationMinutes: null,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbdhpm",
+        sortOrder: 2
+      }),
+      expect.objectContaining({
+        projectName: "homelicare",
+        description: "Geofence Enforcement",
+        details: "Reviewed the backend changes for enabling geofence enforcement by default and flagging visits with missing location data.",
+        durationMinutes: null,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbdhpj",
+        sortOrder: 3
+      }),
+      expect.objectContaining({
+        projectName: "homelicare",
+        description: "QA Feedback Review",
+        details: "Verified the feedback provided by Talha, reviewed the reported issues, and moved tickets back to QA that require separate handling and verification.",
+        durationMinutes: null,
+        taskUrl: null,
+        sortOrder: 4
+      })
+    ]);
+  });
+
+  it("parses Nimra's written date and optional-link task lines", () => {
+    const result = parseDiscordStatus(`Date: October 16, 2026
+Today:
+Homeli Care
+
+Completed the requested review changes on the Unread Messages PR -2h
+Completed the requested review changes on the Error Messages PR and added test cases. - 2h`);
+
+    expect(result?.reportDateIso).toBe("2026-10-16");
+    expect(result?.tasks).toEqual([
+      expect.objectContaining({
+        projectName: "Homeli Care",
+        description: "Completed the requested review changes on the Unread Messages PR",
+        details: null,
+        durationMinutes: 120,
+        taskUrl: null,
+        sortOrder: 0
+      }),
+      expect.objectContaining({
+        projectName: "Homeli Care",
+        description: "Completed the requested review changes on the Error Messages PR and added test cases.",
+        details: null,
+        durationMinutes: 120,
+        taskUrl: null,
+        sortOrder: 1
+      })
+    ]);
+  });
+
+  it("sums Shakil's unbulleted subtask durations under the parent task", () => {
+    const result = parseDiscordStatus(`6/10/2026
+Today:
+EasyRinger
+Mobile App Implementation [WIP]
+Ruled out a push credential per number, wrote the er-ops-voice change, checked prod (about 90% have one Twilio number) and kept the default. Fixed Unknown number in Recent caused by a stored leading + (1hr30m)
+Unregister on sign out: sign out waits for native to unregister every number, and a signed out phone ignores calls. Drawer spec (1hr)
+Staging test: sped up sign out and blocked repeat taps. Registrations raced, so the app now registers only the newest number (1hr)
+Retested sign out and sign in on staging, then planned ConnectionService: Core-Telecom chosen, dial screen hang up rule dropped (1hr)
+Built it: calls run inside telecom, ongoing call service and notification, hold, speaker routes (1hr30m)
+Fixed an answer crash, emulator tests passed (background, locked, notification, hang up, outgoing), built the staging APK, ruled out an er-web fix and wrote the client messages with the er-ops-voice code request (2hr)`);
+
+    expect(result?.reportDateIso).toBe("2026-10-06");
+    expect(result?.tasks).toHaveLength(1);
+    expect(result?.tasks[0]).toMatchObject({
+      projectName: "EasyRinger",
+      description: "Mobile App Implementation",
+      durationMinutes: 480,
+      taskUrl: null,
+      sortOrder: 0
+    });
+    expect(result?.tasks[0].details?.split("\n")).toEqual([
+      "Ruled out a push credential per number, wrote the er-ops-voice change, checked prod (about 90% have one Twilio number) and kept the default. Fixed Unknown number in Recent caused by a stored leading + (1hr30m)",
+      "Unregister on sign out: sign out waits for native to unregister every number, and a signed out phone ignores calls. Drawer spec (1hr)",
+      "Staging test: sped up sign out and blocked repeat taps. Registrations raced, so the app now registers only the newest number (1hr)",
+      "Retested sign out and sign in on staging, then planned ConnectionService: Core-Telecom chosen, dial screen hang up rule dropped (1hr)",
+      "Built it: calls run inside telecom, ongoing call service and notification, hold, speaker routes (1hr30m)",
+      "Fixed an answer crash, emulator tests passed (background, locked, notification, hang up, outgoing), built the staging APK, ruled out an er-web fix and wrote the client messages with the er-ops-voice code request (2hr)"
+    ]);
+  });
+
+  it("parses Burhan's encoded Lightning bullet format", () => {
+    const parserOptions = parserOptionsForDeveloper({ firstName: "Burhan" });
+    const result = parseDiscordStatus(`7/10/2026:
+
+Today:&#x20;
+
+Lightning:&#x20;
+
+- Worked on resolving issues found while testing the inventory usage for purchase order creation workflow, the issue precisely was that the receipt entry for the inventory usage resulted in a error while approving the parts/material as received. Furthermore, continued working on resolving issues during inspection. looked into epicor to resolve it, it is still in progress, we'll have to work on its resolution for non-conformance, DMR, and production readiness - 4h
+- Worked on UI improvements for the PO screen, worked on making UI flow more user friendly - 2h`, parserOptions);
+
+    expect(result?.reportDateIso).toBe("2026-10-07");
+    expect(result?.tasks).toHaveLength(2);
+    expect(result?.tasks[0]).toMatchObject({
+      projectName: "Lightning",
+      durationMinutes: 240,
+      taskUrl: null,
+      sortOrder: 0
+    });
+    expect(result?.tasks[0].description).toContain("Worked on resolving issues found while testing the inventory usage");
+    expect(result?.tasks[1]).toMatchObject({
+      projectName: "Lightning",
+      description: "Worked on UI improvements for the PO screen, worked on making UI flow more user friendly",
+      durationMinutes: 120,
+      taskUrl: null,
+      sortOrder: 1
+    });
+
+    const missingProject = parseDiscordStatus(`8/10/2026
+Today:
+- Worked on the purchase order workflow - 3h`, parserOptions);
+    expect(missingProject?.tasks[0]).toMatchObject({
+      projectName: "Lightening",
+      description: "Worked on the purchase order workflow",
+      durationMinutes: 180
+    });
+    expect(parserOptionsForDeveloper({ firstName: "Nimra" })).toEqual({});
+  });
+
+  it("parses Ahsan and Zeeshan's shared task-and-link format", () => {
+    const result = parseDiscordStatus(`16/10/2026
+
+Today:
+HomeliCare Mob App
+
+[Mobile] Send a reason when location is unavailable during check-in/out — 30m [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbj698
+
+[Mobile] Prevent stale location fallback and remove obsolete assessment screen — 1h [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbj6ya
+
+[iOS] Update App Store Listing Copy — 20m [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbjev8
+
+[Android] Update Google Play Store Listing Copy — 20m [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbjeva
+
+[Android] Update Google Play Release Notes — 20m [DONE]
+Task: https://app.clickup.com/t/42060460/z8q7hbjevc`);
+
+    expect(result?.reportDateIso).toBe("2026-10-16");
+    expect(result?.tasks.map((task) => ({
+      projectName: task.projectName,
+      description: task.description,
+      durationMinutes: task.durationMinutes,
+      taskUrl: task.taskUrl
+    }))).toEqual([
+      {
+        projectName: "HomeliCare Mob App",
+        description: "[Mobile] Send a reason when location is unavailable during check-in/out",
+        durationMinutes: 30,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbj698"
+      },
+      {
+        projectName: "HomeliCare Mob App",
+        description: "[Mobile] Prevent stale location fallback and remove obsolete assessment screen",
+        durationMinutes: 60,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbj6ya"
+      },
+      {
+        projectName: "HomeliCare Mob App",
+        description: "[iOS] Update App Store Listing Copy",
+        durationMinutes: 20,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbjev8"
+      },
+      {
+        projectName: "HomeliCare Mob App",
+        description: "[Android] Update Google Play Store Listing Copy",
+        durationMinutes: 20,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbjeva"
+      },
+      {
+        projectName: "HomeliCare Mob App",
+        description: "[Android] Update Google Play Release Notes",
+        durationMinutes: 20,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbjevc"
+      }
+    ]);
+  });
+
+  it("imports only Ramis's Today tasks across multiple projects", () => {
+    const result = parseDiscordStatus(`13/10/2026
+Yesterday
+CAA:
+packages page theme aligning - 30mins
+properties page theme aligning - 30mins
+sign in page change according to figma - 30mins
+overall application theme, pagination, logos and color changes - 2h
+guided Muawaz for form changes, PR reviews, changes - 30mins
+
+Today:
+CAA:
+forms version display and preview for diff versions - 45mins
+form fields data mapping and attachment with packages, data cascading - 3h
+looked into documenso(WIP) - 30mins
+
+OSS -Blogging
+created presentation for assigned task - 30mins
+ task: https://app.clickup.com/t/42060460/z8q7hbf2ku`);
+
+    expect(result?.reportDateIso).toBe("2026-10-13");
+    expect(result?.tasks).toEqual([
+      expect.objectContaining({
+        projectName: "CAA",
+        description: "forms version display and preview for diff versions",
+        durationMinutes: 45,
+        taskUrl: null,
+        sortOrder: 0
+      }),
+      expect.objectContaining({
+        projectName: "CAA",
+        description: "form fields data mapping and attachment with packages, data cascading",
+        durationMinutes: 180,
+        taskUrl: null,
+        sortOrder: 1
+      }),
+      expect.objectContaining({
+        projectName: "CAA",
+        description: "looked into documenso(WIP)",
+        durationMinutes: 30,
+        taskUrl: null,
+        sortOrder: 2
+      }),
+      expect.objectContaining({
+        projectName: "OSS -Blogging",
+        description: "created presentation for assigned task",
+        durationMinutes: 30,
+        taskUrl: "https://app.clickup.com/t/42060460/z8q7hbf2ku",
+        sortOrder: 3
+      })
+    ]);
+    expect(result?.tasks.some((task) => task.description.includes("packages page theme"))).toBe(false);
+  });
+
+  it("parses Muawaz's indented decimal-hour task format", () => {
+    const result = parseDiscordStatus(`12/10/2026
+
+Today:
+  Caa:
+     Updated the Forms Library to the new platform theme and kept its read-only preview workflow - 1 hr
+     Built the Forms Management listing with pagination, active and archived views, and updated action icons - 1.25 hrs
+     Implemented the two-step form creation flow with rich-text editing and a live form preview - 1.5 hrs.
+     Added form editing, archive and restore confirmations, and consistent confirmation modal styling - 1 hr
+     Implemented the two-step PDF upload flow with PDF text extraction into the form editor - 1.25 hr
+     Added reusable merge fields with immediate persistence, search, helper text, duplicate prevention, and form bindings - 1.5hr
+     Polished editor and library styling, including upload states, modal sizing, card overflow, icons, and CAA badge colors - 0.5 hr `);
+
+    expect(result?.reportDateIso).toBe("2026-10-12");
+    expect(result?.tasks).toHaveLength(7);
+    expect(result?.tasks.map((task) => task.projectName)).toEqual(Array(7).fill("Caa"));
+    expect(result?.tasks.map((task) => task.durationMinutes)).toEqual([60, 75, 90, 60, 75, 90, 30]);
+    expect(result?.tasks.reduce((total, task) => total + (task.durationMinutes ?? 0), 0)).toBe(480);
+    expect(result?.tasks.map((task) => task.description)).toEqual([
+      "Updated the Forms Library to the new platform theme and kept its read-only preview workflow",
+      "Built the Forms Management listing with pagination, active and archived views, and updated action icons",
+      "Implemented the two-step form creation flow with rich-text editing and a live form preview",
+      "Added form editing, archive and restore confirmations, and consistent confirmation modal styling",
+      "Implemented the two-step PDF upload flow with PDF text extraction into the form editor",
+      "Added reusable merge fields with immediate persistence, search, helper text, duplicate prevention, and form bindings",
+      "Polished editor and library styling, including upload states, modal sizing, card overflow, icons, and CAA badge colors"
+    ]);
+    expect(result?.tasks.every((task) => task.taskUrl === null)).toBe(true);
   });
 
   it("ignores leave notices and messages without a dated status", () => {
